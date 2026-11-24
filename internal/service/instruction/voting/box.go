@@ -90,15 +90,12 @@ type voteBox struct {
 	Finalized bool
 	deleted   bool
 
-	// finalizedAt is set on restore boxes only; it hands the finalization time to scheduleEnd,
-	// which sends their threshold action.
-	finalizedAt chan time.Time
+	finalizedAt chan time.Time // restore boxes only; passes the finalization time to scheduleEnd
 
 	sync.RWMutex
 }
 
-// isRestore reports whether data is a data-provider restore, which votes for restore_expiration
-// and sends its threshold action a delay after finalization.
+// isRestore reports whether data is a KEY_DATA_PROVIDER_RESTORE.
 func isRestore(data *instruction.DataFixed) bool {
 	return data.OPType == op.Wallet.Hash() && data.OPCommand == op.KeyDataProviderRestore.Hash()
 }
@@ -346,9 +343,8 @@ func (vb *voteBox) addVote(signer common.Address, weight uint16, signature []byt
 	return receipt, false, nil
 }
 
-// scheduleEnd sends the actions of a finalized box and deletes the box at its end. A restore
-// box sends its threshold action delay after finalization, or before its end action if that
-// would be later.
+// scheduleEnd sends a finalized box's end action and deletes the box at EndTime. A restore box
+// also sends its threshold action delay after finalization, capped at EndTime.
 func (vb *voteBox) scheduleEnd(ctx context.Context, out chan *types.Action, boxes *voteBoxes, delay time.Duration, m *metrics.Metrics) {
 	thresholdSent := false
 	if vb.finalizedAt != nil {
@@ -430,8 +426,7 @@ func (vb *voteBox) scheduleEnd(ctx context.Context, out chan *types.Action, boxe
 	}
 }
 
-// sendThreshold sends the threshold action of a finalized restore box. It returns false only
-// when ctx is done before the send.
+// sendThreshold sends a finalized restore box's threshold action; false means ctx ended first.
 func (vb *voteBox) sendThreshold(ctx context.Context, out chan *types.Action, m *metrics.Metrics) bool {
 	vb.Lock()
 	a, err := vb.Action(types.Threshold)

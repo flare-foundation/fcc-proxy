@@ -2,10 +2,6 @@
 
 ## Unreleased
 
-### Added
-
-- `[voting] restore_expiration` sets how long a `KEY_DATA_PROVIDER_RESTORE` voting stays open, default `8h`; other instructions keep `proposal_expiration`.
-
 ### Changed
 
 - **Breaking:** the module is renamed from `github.com/flare-foundation/tee-proxy` to `github.com/flare-foundation/fcc-proxy`, and docs, logs and comments say FCC proxy and FCC node instead of TEE proxy and TEE node.
@@ -15,7 +11,7 @@
   Results, queued actions and backups stored by an earlier release are not compatible, so deploy with a fresh Redis and a fresh GCS prefix.
 - **Breaking:** metric names are prefixed `fccproxy_` instead of `teeproxy_`, the example alerts are named `FccProxy*` instead of `TeeProxy*`, and the example job selector is `fcc-proxy`; alert rules and dashboards on the old names stop matching.
 - **Behavioral:** when a second instruction with the same ID but different data also reaches its threshold, its threshold action is no longer sent, as fcc-node accepts one threshold per instruction ID and would answer it with status `0`.
-- **Behavioral:** restore votings stay open for `restore_expiration` (default `8h`) instead of `proposal_expiration`.
+- **Behavioral:** `KEY_DATA_PROVIDER_RESTORE` votings stay open for the new `[voting] restore_expiration` (default `8h`) instead of `proposal_expiration`.
 - **Behavioral:** a finalized restore sends its threshold action 10 minutes after finalization, or at the end of the voting if that comes first, instead of at the end; the end action is still sent at the end.
 - The live chain-source tests read `FCCPROXY_LIVE_RPC_URL` and `FCCPROXY_LIVE_RELAY` instead of `TEEPROXY_LIVE_RPC_URL` and `TEEPROXY_LIVE_RELAY`.
 

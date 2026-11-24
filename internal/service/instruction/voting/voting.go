@@ -24,8 +24,7 @@ import (
 
 const maxBIPS = 10000
 
-// restoreThresholdDelay is how long a finalized restore keeps collecting key shares before its
-// threshold action is sent; the end of the voting caps it.
+// restoreThresholdDelay lets a finalized restore collect more key shares before its threshold action.
 const restoreThresholdDelay = 10 * time.Minute
 
 // AddVote rejection sentinels classified by RejectReason; each wraps its HTTP status.
@@ -362,7 +361,7 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 
 			switch {
 			case box.finalizedAt != nil:
-				// buffered and finalization happens once, so this never blocks under the locks
+				// never blocks: buffered, sent once
 				box.finalizedAt <- time.Now()
 			default:
 				// The node accepts one threshold per instruction ID, so only the first finalized hash is sent.
