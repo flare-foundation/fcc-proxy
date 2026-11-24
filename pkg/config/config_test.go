@@ -131,6 +131,7 @@ func TestConfig(t *testing.T) {
 			before: Voting{},
 			after: Voting{
 				ProposalExpiration:  defaultProposalExpiration,
+				RestoreExpiration:   defaultRestoreExpiration,
 				MaxPendingRequests:  defaultMaxPendingRequests,
 				HistorySize:         defaultVotingHistorySize,
 				FinalizedBufferSize: defaultFinalizedBufferSize,
@@ -139,10 +140,12 @@ func TestConfig(t *testing.T) {
 		{
 			before: Voting{
 				ProposalExpiration: 1,
+				RestoreExpiration:  2 * time.Hour,
 				MaxPendingRequests: 1,
 			},
 			after: Voting{
 				ProposalExpiration:  1,
+				RestoreExpiration:   2 * time.Hour,
 				MaxPendingRequests:  1,
 				HistorySize:         defaultVotingHistorySize,
 				FinalizedBufferSize: defaultFinalizedBufferSize,
@@ -157,6 +160,7 @@ func TestConfig(t *testing.T) {
 			},
 			after: Voting{
 				ProposalExpiration:  defaultProposalExpiration,
+				RestoreExpiration:   defaultRestoreExpiration,
 				MaxPendingRequests:  1,
 				HistorySize:         defaultVotingHistorySize,
 				FinalizedBufferSize: 1,
@@ -171,6 +175,7 @@ func TestConfig(t *testing.T) {
 			},
 			after: Voting{
 				ProposalExpiration:  10,
+				RestoreExpiration:   defaultRestoreExpiration,
 				MaxPendingRequests:  defaultMaxPendingRequests,
 				HistorySize:         3,
 				FinalizedBufferSize: 1,

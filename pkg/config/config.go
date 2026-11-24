@@ -41,6 +41,7 @@ const (
 	defaultMachinePathListFetchInterval = 10 * time.Minute
 
 	defaultProposalExpiration  = 120 * time.Second
+	defaultRestoreExpiration   = 8 * time.Hour
 	defaultMaxPendingRequests  = uint(100)
 	defaultVotingHistorySize   = 3
 	defaultFinalizedBufferSize = 10
@@ -67,6 +68,7 @@ var (
 	errInternalPortNotSet                   = errors.New("internal port not set")
 	errExternalPortNotSet                   = errors.New("external port not set")
 	errProposalExpirationPositive           = errors.New("proposalExpiration has to be positive")
+	errRestoreExpirationPositive            = errors.New("restoreExpiration has to be positive")
 	errMaxPendingRequestsPositive           = errors.New("maxPendingRequests has to be positive")
 	errHistorySizeTooSmall                  = errors.New("historySize has to be at least 2")
 	errFinalizedBufferSizePositive          = errors.New("finalizedBufferSize has to be positive")
@@ -333,6 +335,7 @@ func Read(path string) (Proxy, error) {
 
 		Voting: Voting{
 			ProposalExpiration:  defaultProposalExpiration,
+			RestoreExpiration:   defaultRestoreExpiration,
 			MaxPendingRequests:  defaultMaxPendingRequests,
 			HistorySize:         defaultVotingHistorySize,
 			FinalizedBufferSize: defaultFinalizedBufferSize,
@@ -569,6 +572,7 @@ func (a Ports) validate() error {
 // Voting holds tuning parameters for the instruction voting consensus.
 type Voting struct {
 	ProposalExpiration  time.Duration `toml:"proposal_expiration"`   // Duration the voting for a proposal is open for. Default is 120s
+	RestoreExpiration   time.Duration `toml:"restore_expiration"`    // Duration the voting for a KEY_DATA_PROVIDER_RESTORE proposal is open for. Default is 8h.
 	MaxPendingRequests  uint          `toml:"max_pending_request"`   // Maximal number of open (unfinalized) proposals per provider. It defaults to 100.
 	HistorySize         int           `toml:"history_size"`          // Number of most recent signing policy rounds to keep in memory; also the policy history depth loaded at startup. Defaults to 3, minimum 2.
 	FinalizedBufferSize int           `toml:"finalized_buffer_size"` // Buffer size for the finalized instructions channel. Defaults to 10.
@@ -587,6 +591,9 @@ func (v *Voting) SetDefault() *Voting {
 	if v.ProposalExpiration <= 0 {
 		v.ProposalExpiration = defaultProposalExpiration
 	}
+	if v.RestoreExpiration <= 0 {
+		v.RestoreExpiration = defaultRestoreExpiration
+	}
 	if v.HistorySize <= 1 {
 		v.HistorySize = defaultVotingHistorySize
 	}
@@ -601,6 +608,10 @@ func (v *Voting) SetDefault() *Voting {
 func (v *Voting) validate() error {
 	if v.ProposalExpiration <= 0 {
 		return errProposalExpirationPositive
+	}
+
+	if v.RestoreExpiration <= 0 {
+		return errRestoreExpirationPositive
 	}
 
 	if v.MaxPendingRequests == 0 {
