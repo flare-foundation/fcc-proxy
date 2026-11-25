@@ -63,11 +63,8 @@ func (s *instrumentedStorage[T]) Remove(ctx context.Context, key string) error {
 	return err
 }
 
-// outcome classifies an operation result, normalizing a missing key to not_found. Caller-side
-// cancellation — context.Canceled, or a deadline already expired before the operation started
-// (preExpired, e.g. the post-timeout "hopeful" result fetch) — is cancelled. A deadline the
-// operation consumed itself is timeout: a hung backend under a retrying client (GCS RetryAlways)
-// only ever fails this way, so the storage-error alerts must see it.
+// outcome classifies an operation result: a missing key is not_found, a cancel or a deadline expired
+// before the call (preExpired) is cancelled, and a deadline the call consumed is timeout.
 func outcome(err error, preExpired bool) string {
 	switch {
 	case err == nil:

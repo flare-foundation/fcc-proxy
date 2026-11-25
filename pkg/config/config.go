@@ -123,7 +123,7 @@ type Proxy struct {
 	GCS                          GCS             `toml:"gcs"`                              // Google Cloud Storage connection configuration.
 	ChainID                      uint64          `toml:"chain_id"`                         // EVM chain ID bound into TEE/FDC2 signed payloads. Must be a positive integer.
 	Addresses                    Addresses       `toml:"addresses"`                        // Smart contract addresses.
-	Governance                   Governance      `toml:"governance"`                       // TEE governance; required for Safe-backed governance (enables Safe machine-path-list approval pre-verification), recommended otherwise (filters forwarded signatures).
+	Governance                   Governance      `toml:"governance"`                       // TEE governance; required if Safe-backed, recommended otherwise.
 	Ports                        Ports           `toml:"ports"`                            // Servers ports.
 	InfoTiming                   InfoTiming      `toml:"info_timing"`                      // Timing configuration for TEE info updates (duration between periodic checks and response timeout)
 	Voting                       Voting          `toml:"voting"`                           // Instruction voting configurations.
@@ -131,7 +131,7 @@ type Proxy struct {
 	SigningPolicyFetchInterval   time.Duration   `toml:"signing_policy_fetch_interval"`    // Duration between periodic checks for a new signing policy.
 	MachinePathListFetchInterval time.Duration   `toml:"machine_path_list_fetch_interval"` // Duration between periodic checks for a newly signed machine path list. Defaults to 10m.
 	DBSyncMaxSleepTime           time.Duration   `toml:"db_sync_max_sleep_time"`           // Max sleep between chain-source sync retries on startup. Defaults to 10m.
-	Logging                      logger.Config   `toml:"logging"`                          // Logging configurations. Default is "DEBUG" level in consol.
+	Logging                      logger.Config   `toml:"logging"`                          // Logging configurations. Default is "DEBUG" level.
 	Direct                       Direct          `toml:"direct"`                           // Direct endpoint configuration.
 	Storage                      Storage         `toml:"storage"`                          // TTLs applied to Redis/GCS-backed persistent storage.
 	Attestation                  Attestation     `toml:"attestation"`                      // Bootstrap attestation verification configuration.
@@ -286,7 +286,7 @@ type Metrics struct {
 	Queue        *bool `toml:"queue"`         // Action enqueue/dequeue counters and queue-depth gauge.
 	Voting       *bool `toml:"voting"`        // Instruction and votings-started counters, threshold-duration histogram.
 	ActiveVoters *bool `toml:"active_voters"` // Per-epoch participant gauges (data-provider voters and weight, initiators, top providers, voting threshold).
-	Result       *bool `toml:"result"`        // Result throughput, lost, discarded, rejected, and channel-dropped counters; rejected{reason=wrong_tee_id} is the TEE tamper/mis-route signal.
+	Result       *bool `toml:"result"`        // Result throughput, lost, discarded, rejected, and channel-dropped counters.
 	Wallet       *bool `toml:"wallet"`        // Wallet key/proof sync-cycle outcome counter and cached-key gauge.
 	Info         *bool `toml:"info"`          // TEE info per-stage refresh failures and end-to-end refresh-duration histogram.
 	Attestation  *bool `toml:"attestation"`   // Attestation verify outcomes.
@@ -491,28 +491,10 @@ func (a Addresses) validate() error {
 	return nil
 }
 
-// Governance is the extension's TEE governance. It is required for Safe-backed
-// governance and recommended otherwise:
-//
-//   - Safe-backed governance: set all fields so the proxy can collect and
-//     pre-verify the approveMachinePathList Safe transactions that authorize a
-//     machine-path list. Without them the proxy cannot assemble Safe
-//     authorization and the node rejects every list update.
-//   - direct-signature governance: set Signers and Threshold alone (no Safe).
-//     Unset, every on-chain signature is forwarded, and the node rejects lists
-//     that involve several governances.
-//
-// When set, only Signers' signatures are forwarded, and the governance hash is
-// cross-checked against the node's attested hash at startup, refusing to run
-// on a mismatch.
-//
-// Signers and Threshold are the plain governance signer set / threshold, or —
-// for Safe-backed governance — the Safe owners' snapshot and threshold. Safe
-// and TeeManager are set together only for Safe-backed governance.
-//
-// A set governance requires addresses.machine_path_manager: the block exists
-// only for the machine-path service, so configuring one without the other is
-// rejected at load time.
+// Governance is the extension's TEE governance, required if Safe-backed and recommended otherwise.
+// Signers and Threshold are the governance signer set, or the Safe owners' snapshot when Safe-backed,
+// which also sets Safe and TeeManager. When set, only Signers' signatures are forwarded, the hash must
+// match the node's at startup, and addresses.machine_path_manager is required.
 type Governance struct {
 	Signers    []common.Address `toml:"signers"`
 	Threshold  uint64           `toml:"threshold"`
@@ -576,7 +558,7 @@ type Voting struct {
 	MaxPendingRequests  uint          `toml:"max_pending_request"`   // Maximal number of open (unfinalized) proposals per provider. It defaults to 100.
 	HistorySize         int           `toml:"history_size"`          // Number of most recent signing policy rounds to keep in memory; also the policy history depth loaded at startup. Defaults to 3, minimum 2.
 	FinalizedBufferSize int           `toml:"finalized_buffer_size"` // Buffer size for the finalized instructions channel. Defaults to 10.
-	MaxProviderVote     float64       `toml:"max_provider_vote"`     // Maximal possible fraction (0,1] of total weight a single provider can hold. Used to cap per-vote variable message size for restore operations. If unset, no cap is applied.
+	MaxProviderVote     float64       `toml:"max_provider_vote"`     // Max fraction (0,1] of total weight one provider can hold; caps a restore vote's variable message size. Unset: no cap.
 }
 
 // SetDefault sets default values if applicable.

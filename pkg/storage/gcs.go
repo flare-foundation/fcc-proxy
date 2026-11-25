@@ -12,11 +12,8 @@ import (
 	"google.golang.org/api/option"
 )
 
-// NewGCSClient creates a new Google Cloud Storage client.
-//
-// If credentialsFile is empty, Application Default Credentials are used.
-// If url is non-empty, it is used as the endpoint without authentication —
-// intended for emulators (e.g. fake-gcs-server) in tests.
+// NewGCSClient creates a Google Cloud Storage client from credentialsFile, or Application Default Credentials;
+// a non-empty url is an unauthenticated endpoint, for emulators.
 func NewGCSClient(ctx context.Context, credentialsFile, url string) (*gcs.Client, error) {
 	opts := make([]option.ClientOption, 0, 3)
 	if credentialsFile != "" {
@@ -30,10 +27,7 @@ func NewGCSClient(ctx context.Context, credentialsFile, url string) (*gcs.Client
 	return gcs.NewClient(ctx, opts...)
 }
 
-// gcsDoc is the stored envelope: the JSON-marshaled value together with its
-// expiration. Expiration is enforced lazily on Get, mirroring the other Storage
-// implementations; a bucket lifecycle rule can garbage-collect objects that are
-// never read again.
+// gcsDoc is the stored envelope: the JSON value and its expiration, enforced lazily on Get.
 type gcsDoc struct {
 	Data      []byte    `json:"data"`
 	ExpiresAt time.Time `json:"expiresAt"`

@@ -49,15 +49,12 @@ type declinedStore interface {
 	StoreDeclined(ctx context.Context, id, opType, opCommand common.Hash, voters []common.Address) error
 }
 
-// NewService creates a new instruction Service with the given voting config, TEE identity, and dependencies.
+// NewService creates an instruction Service; m may be nil or disabled.
 // chainID is bound into the instruction signing hash and must match the FCC node's chain ID.
-// m may be nil or disabled.
 func NewService(ctx context.Context, votingCfg *config.Voting, teeID common.Address, policiesChan <-chan policy.SigningPolicy, aq *queue.ActionQueues, results declinedStore, meta meta.Meta, chainID uint64, m *metrics.Metrics) *Service {
 	vs := voting.NewStorage(ctx, votingCfg, meta, m)
 
-	// Report current-epoch participant counts, participating and per-voting weight against the
-	// finalization threshold, and the oldest resident signing-policy epoch at scrape time; each
-	// is a no-op when its metric group is disabled.
+	// scrape-time gauges; each is a no-op when its metric group is disabled
 	m.RegisterActiveDataProviderVoters(func() float64 { return float64(vs.CurrentRoundProviderVoterCount()) })
 	m.RegisterActiveInitiators(func() float64 { return float64(vs.CurrentRoundInitiatorCount()) })
 	m.RegisterActiveDataProviderWeight(vs.CurrentVotedWeightBips)
@@ -93,13 +90,7 @@ func NewService(ctx context.Context, votingCfg *config.Voting, teeID common.Addr
 	}
 }
 
-// ServeInstruction accepts instruction, processes it, and returns the receipt.
-//
-// It checks that:
-//   - correct teeID is set
-//   - has a valid opType, opCommand pair
-//
-// Additional checks are done by the voting storage.
+// ServeInstruction records a signed instruction as a vote and returns the receipt.
 func (s *Service) ServeInstruction(_ context.Context, i *instruction.Instruction) (*pkgvoting.Receipt, error) {
 	s.metrics.InstructionReceived()
 
@@ -124,9 +115,7 @@ func (s *Service) ServeInstruction(_ context.Context, i *instruction.Instruction
 	receipt, err := s.vs.AddVote(&i.Data, signer, i.Signature)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
-			// Consensus was reached but the finalized-action send was cancelled at shutdown
-			// (already counted under finalized_action_lost_total{reason="send_cancelled"});
-			// it is not a rejection, so skip instructions_rejected_total.
+			// finalized-action send cancelled at shutdown: counted as finalized_action_lost, not a rejection
 			return nil, err
 		}
 		s.metrics.InstructionRejected(voting.RejectReason(err))

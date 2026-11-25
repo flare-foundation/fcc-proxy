@@ -22,22 +22,13 @@ import (
 
 var errNoPaths = errors.New("no machine paths found for list")
 
-// ErrNoAuthorization marks an activated list with no forwardable authorization
-// evidence: neither direct governance signatures nor a verifiable Safe approval.
-// A governance-configuration condition, not an infra fault — callers classify it
-// apart from other build failures.
+// ErrNoAuthorization marks an activated list with neither direct governance signatures nor a verifiable Safe approval.
 var ErrNoAuthorization = errors.New("no governance signatures or safe approvals found for list")
 
-// SetMachinePathListAction builds the SET_MACHINE_PATH_LIST direct action for
-// the governance-approved list identified by (extensionID, nonce). It reads the
-// list's paths in on-chain order and its governance authorization from src: the
-// governance signatures and — when the node's governance is Safe-backed
-// (gov.Safe nonzero) — one locally pre-verified Safe approval. At least one form
-// must be found; otherwise ErrNoAuthorization is returned. The FCC node
-// re-verifies either against its own governance set and threshold; gov is
-// that same snapshot, as reported by the node. When gov.Signers is known, only
-// their signatures are forwarded: the node rejects the whole set on any other
-// signer, and a list may involve several governances.
+// SetMachinePathListAction builds the SET_MACHINE_PATH_LIST direct action for the list (extensionID, nonce)
+// from src: its paths in on-chain order, the governance signatures (only gov.Signers' when known, as the node
+// rejects any other signer) and, for a Safe-backed gov, one pre-verified Safe approval.
+// With neither it returns ErrNoAuthorization. gov is the node's reported governance.
 func SetMachinePathListAction(
 	ctx context.Context,
 	src Source,
@@ -93,10 +84,8 @@ func SetMachinePathListAction(
 	return queue.PrepareDirectAction(op.Governance, op.SetMachinePathList, msg)
 }
 
-// collectSignatures serializes the list's governance signatures, keeping the
-// first per signer recovered against hash and, when signers is non-empty, only
-// those signers. An empty result is not an error — the caller decides whether
-// other authorization evidence (a Safe approval) covers the list.
+// collectSignatures serializes the first signature per signer recovered against hash, only from signers
+// when non-empty; an empty result is not an error.
 func collectSignatures(signatures []machinepathmanager.Signature, hash common.Hash, signers []common.Address) [][]byte {
 	sigs := make([][]byte, 0, len(signatures))
 	seen := make(map[common.Address]bool, len(signatures))

@@ -26,10 +26,8 @@ import (
 // namespace prefixes every metric name, yielding fccproxy_*.
 const namespace = "fccproxy"
 
-// httpBuckets spans fast JSON replies up to the slowest handlers. The 30s/60s tail sits
-// above the servers' 15s WriteTimeout on purpose: that timeout aborts only the response
-// write, not the handler goroutine, so a degraded (e.g. Redis-stalled) request can still
-// be observed taking longer than 15s.
+// httpBuckets spans fast JSON replies up to the slowest handlers; the 30s/60s tail is above the
+// 15s WriteTimeout, which stops only the response write, not the handler.
 var httpBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
 
 // storageBuckets covers sub-millisecond Redis ops through multi-second GCS commits.
@@ -39,9 +37,7 @@ var storageBuckets = []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 
 // proposal-expiration window (minutes).
 var votingDurationBuckets = []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}
 
-// nodeBuckets covers fast cached node replies through waits approaching the per-path
-// response timeouts (wallet KEY_INFO/KEY_PROOF allow 3m, machinepath and policy_update
-// confirmation 2m).
+// nodeBuckets covers cached node replies up to the per-path response timeouts (3m wallet, 2m machinepath and policy_update).
 var nodeBuckets = []float64{0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 180, 300}
 
 // infoRefreshBuckets covers a fast cached info refresh through one approaching the
@@ -223,9 +219,7 @@ func New(cfg Config) *Metrics {
 			Namespace: namespace, Name: "instructions_rejected_total",
 			Help: "Instructions rejected, by reason.",
 		}, []string{"reason"})
-		// Pre-initialize all reasons to 0 for a stable dashboard baseline.
-		// Source of truth: instruction.go (wrong_tee_id/invalid_op/invalid_signature) and
-		// voting.RejectReason (the rest) — keep in sync.
+		// keep in sync with instruction.go and voting.RejectReason
 		for _, reason := range []string{
 			"wrong_tee_id", "invalid_op", "invalid_signature",
 			"invalid_voter", "voting_ended", "duplicate_signature", "event_in_future",
@@ -241,11 +235,7 @@ func New(cfg Config) *Metrics {
 			Namespace: namespace, Name: "votings_started_total",
 			Help: "Votings opened (a new proposal box created).",
 		})
-		// voting_threshold_duration_seconds_count is the count of finalizations (votings that
-		// reached threshold), so a separate consensus_reached_total counter is not needed.
-		// It is intentionally unlabeled: consensus latency is governed by a protocol uniform
-		// across op types, so an op_command label would stratify by traffic mix while
-		// multiplying series for no diagnostic gain.
+		// its _count is the finalization count
 		m.votingThresholdDuration = f.NewHistogram(prometheus.HistogramOpts{
 			Namespace: namespace, Name: "voting_threshold_duration_seconds",
 			Help: "Seconds from voting start to reaching threshold.", Buckets: votingDurationBuckets,
@@ -315,8 +305,7 @@ func New(cfg Config) *Metrics {
 			Namespace: namespace, Name: "attestation_verify_total",
 			Help: "Attestation verification attempts by result and reason.",
 		}, []string{"result", "reason"})
-		// Pre-initialize so a first, possibly one-shot verification event satisfies increase()>0 (a series born at 1 never does).
-		// The ok/magic_pass series is pre-initialized too so the critical, no-for: FccProxyMagicPassAccepted fires on the first accepted sentinel.
+		// pre-initialize so a first event, e.g. for FccProxyMagicPassAccepted, satisfies increase()>0
 		m.attestationVerify.WithLabelValues("ok", "ok").Add(0)
 		m.attestationVerify.WithLabelValues("ok", attestation.ReasonMagicPass).Add(0)
 		for _, reason := range attestation.ErrorReasons {
@@ -480,9 +469,7 @@ func (m *Metrics) FinalizedActionEnqueueFailed() {
 }
 
 // FinalizedActionLost records a finalized action lost before the main-queue enqueue or on
-// send to the node, by bounded reason ("build_error", "send_cancelled", "send_failed").
-// Callers pass compile-time constants, so the reason enum stays closed. It is a sibling of
-// FinalizedActionEnqueueFailed, which keeps counting enqueue failures separately.
+// send to the node, by reason ("build_error", "send_cancelled", "send_failed").
 func (m *Metrics) FinalizedActionLost(reason string) {
 	if m == nil || m.finalizedActionLost == nil {
 		return
@@ -563,9 +550,7 @@ type ProviderPending struct {
 	Pending  float64
 }
 
-// topPendingCollector emits one gauge sample per provider returned by top() at scrape time.
-// Building the samples fresh each scrape means only the current top providers appear and no
-// stale per-address series accumulate in the registry.
+// topPendingCollector emits one sample per provider from top() at each scrape, so no stale per-address series remain.
 type topPendingCollector struct {
 	desc *prometheus.Desc
 	top  func() []ProviderPending
@@ -579,9 +564,8 @@ func (c topPendingCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-// RegisterTopUnfinalizedProposals registers a scrape-time collector that emits, per provider,
-// the number of unfinalized proposals it holds — for the providers returned by top() (intended
-// to be the top 3), omitting any with none. No-op when active-voters is disabled.
+// RegisterTopUnfinalizedProposals registers a scrape-time collector of the unfinalized proposals of
+// each provider top() returns. No-op when active-voters is disabled.
 func (m *Metrics) RegisterTopUnfinalizedProposals(top func() []ProviderPending) {
 	if !m.ActiveVotersEnabled() || top == nil {
 		return
@@ -596,9 +580,7 @@ func (m *Metrics) RegisterTopUnfinalizedProposals(top func() []ProviderPending) 
 	})
 }
 
-// PreinitInfoStages seeds one series per stage at 0, so a first, possibly one-shot failure
-// satisfies increase()>0 (a series born at 1 never does). The stage set belongs to the caller
-// that emits the labels; this package does not restate it.
+// PreinitInfoStages seeds one series per stage at 0, so a first failure satisfies increase()>0.
 func (m *Metrics) PreinitInfoStages(stages []string) {
 	if m == nil || m.infoRefreshFailures == nil || m.infoRefreshExhausted == nil {
 		return
@@ -628,9 +610,7 @@ func (m *Metrics) InfoRefreshExhausted(stage string) {
 	m.infoRefreshExhausted.WithLabelValues(stage).Inc()
 }
 
-// InfoRefreshObserved records one completed TEE-info refresh attempt by duration and outcome
-// ("ok"/"error"). It gives the failure counter a denominator; the per-stage breakdown
-// stays in info_refresh_failures_total.
+// InfoRefreshObserved records one completed TEE-info refresh attempt by duration and outcome ("ok"/"error").
 func (m *Metrics) InfoRefreshObserved(d time.Duration, err error) {
 	if m == nil || m.infoRefreshDuration == nil {
 		return
@@ -651,11 +631,7 @@ func (m *Metrics) AttestationVerified(result, reason string) {
 	m.attestationVerify.WithLabelValues(result, reason).Inc()
 }
 
-// SetAttestationPosture records the attestation verification posture, setting the
-// attestation_posture gauge to 1 for each active setting and 0 otherwise. The setting
-// key set is closed — the sole caller passes a fixed-key literal map: enabled,
-// magic_pass_allowed, audience_check, code_hash_check, platform_check, debug_status_check,
-// max_token_age_check, sec_boot_check.
+// SetAttestationPosture sets attestation_posture to 1 for each active setting and 0 otherwise.
 func (m *Metrics) SetAttestationPosture(settings map[string]bool) {
 	if m == nil || m.attestationPosture == nil {
 		return
@@ -680,10 +656,8 @@ func (m *Metrics) ObserveNodeWait(path string, d time.Duration, err error) {
 	m.nodeWaitTotal.WithLabelValues(path, nodeWaitResult(err)).Inc()
 }
 
-// nodeWaitResult maps a WaitOnResponse error to a bounded outcome label. A pubsub wait
-// expiry surfaces as a net read-deadline error (*net.OpError wrapping os.ErrDeadlineExceeded)
-// rather than context.DeadlineExceeded — go-redis turns the context deadline into a raw
-// connection deadline — so net timeouts classify as "timeout" too.
+// nodeWaitResult maps a WaitOnResponse error to an outcome label; go-redis reports a pubsub wait
+// expiry as a net read-deadline error, so net timeouts are "timeout" too.
 func nodeWaitResult(err error) string {
 	var netErr net.Error
 	switch {
@@ -700,13 +674,9 @@ func nodeWaitResult(err error) string {
 	}
 }
 
-// MachinepathPollObserved records one machine-path poll-loop outcome under a bounded result
-// ("fetch_error"/"build_error"/"no_authorization"/"enqueue_error"/"wait_error"/"no_change"/"rejected"/"confirmed");
-// "no_authorization" is an activated list with no forwardable authorization evidence (neither
-// direct signatures nor a verifiable Safe approval — a governance-config condition, split out
-// of "build_error" so it does not read as an infra fault),
-// "rejected" is a node status!=1 rejection (err==nil, so invisible to node_response_wait_total),
-// "wait_error" a failed or timed-out confirmation wait (shutdown cancellations excluded).
+// MachinepathPollObserved records one machine-path poll-loop outcome: "fetch_error", "build_error",
+// "no_authorization" (no forwardable governance signatures or Safe approval), "enqueue_error",
+// "wait_error", "no_change", "rejected" (node status != 1) or "confirmed".
 func (m *Metrics) MachinepathPollObserved(result string) {
 	if m == nil || m.machinepathPollTotal == nil {
 		return
@@ -714,11 +684,7 @@ func (m *Metrics) MachinepathPollObserved(result string) {
 	m.machinepathPollTotal.WithLabelValues(result).Inc()
 }
 
-// SetGovernancePosture records the machine-path governance posture, setting the
-// governance_posture gauge to 1 for each active setting and 0 otherwise. The setting
-// key set is closed — the sole caller passes a fixed-key literal map: configured,
-// safe_backed. Set unconditionally at startup (pure config), so the series exists
-// even when the machine-path service itself is disabled.
+// SetGovernancePosture sets governance_posture to 1 for each active setting and 0 otherwise.
 func (m *Metrics) SetGovernancePosture(settings map[string]bool) {
 	if m == nil || m.governancePosture == nil {
 		return
@@ -737,11 +703,8 @@ func (m *Metrics) NodeEnabled() bool {
 	return m != nil && m.cfg.Enable && m.cfg.Node
 }
 
-// RegisterGovernanceHashMatch registers a scrape-time gauge reporting whether the
-// governance hash the fcc-node last reported still equals the proxy's startup-resolved
-// snapshot (1 = match, 0 = the node's governance rotated after startup, so Safe
-// pre-verification runs against a stale snapshot). Registered only when [governance]
-// is configured; no-op when the node group is disabled.
+// RegisterGovernanceHashMatch registers a scrape-time gauge: 1 while the node's governance hash
+// equals the proxy's startup snapshot, else 0. No-op when the node group is disabled.
 func (m *Metrics) RegisterGovernanceHashMatch(match func() float64) {
 	if !m.NodeEnabled() || match == nil {
 		return
@@ -783,9 +746,8 @@ func (m *Metrics) PolicyEnabled() bool {
 	return m != nil && m.cfg.Enable && m.cfg.Policy
 }
 
-// RegisterOldestStoredPolicy registers a scrape-time gauge reporting the oldest reward epoch
-// with a signing policy still resident in the in-memory voting window. The newest/active epoch
-// is already exposed by policy_active_reward_epoch. No-op when the policy group is disabled.
+// RegisterOldestStoredPolicy registers a scrape-time gauge of the oldest reward epoch with a
+// signing policy in the voting window. No-op when the policy group is disabled.
 func (m *Metrics) RegisterOldestStoredPolicy(oldest func() float64) {
 	if !m.PolicyEnabled() || oldest == nil {
 		return
@@ -934,9 +896,7 @@ func (m *Metrics) WalletKeyUpdateFailed() {
 	m.walletKeyUpdateFailed.Inc()
 }
 
-// WalletBackupApplyFailed records a signed TEE_BACKUP result from the node that failed to
-// decode before storage — the backup sibling of WalletKeyUpdateFailed. The storage legs are
-// counted separately by storage_operations_total.
+// WalletBackupApplyFailed records a signed TEE_BACKUP result from the node that failed to decode.
 func (m *Metrics) WalletBackupApplyFailed() {
 	if m == nil || m.walletBackupApplyFailed == nil {
 		return
@@ -956,10 +916,8 @@ func (m *Metrics) RegisterWalletKeysCached(count func() float64) {
 	}, count))
 }
 
-// ResultProcessed records one validated FCC-node result delivery by op command and status
-// class. It is counted after the identity gates but before storage, so a re-delivery that the
-// storage override-guard later rejects (a duplicate of an already-persisted result) still
-// counts here: it measures processed deliveries, not distinct stored results.
+// ResultProcessed records one validated FCC-node result delivery, re-deliveries included,
+// by op command and status class.
 func (m *Metrics) ResultProcessed(opCommand common.Hash, status uint8) {
 	if m == nil || m.resultsProcessed == nil {
 		return

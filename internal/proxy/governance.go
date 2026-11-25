@@ -22,18 +22,9 @@ func logGovernancePosture(cfg config.Governance) {
 	}
 }
 
-// resolveGovernance converts the optional governance config into the
-// types.Governance the machine-path service uses to filter direct signatures
-// and pre-verify Safe approvals, after cross-checking it against the node's
-// attested governance hash.
-//
-// When no governance is configured it returns the zero value, which disables
-// both — the proxy then forwards every direct governance signature (the
-// legacy path) and nothing is cross-checked. When configured, it recomputes
-// the governance hash from the configured signer set (plain or Safe flavor)
-// and requires it to equal nodeGovernanceHash, so the proxy filters and
-// pre-verifies against exactly the governance the node enforces; a mismatch
-// is a hard error.
+// resolveGovernance converts the optional governance config into the types.Governance the machine-path
+// service filters signatures and pre-verifies Safe approvals with; its hash must equal nodeGovernanceHash.
+// Unset, it returns the zero value, which forwards every direct governance signature.
 func resolveGovernance(cfg config.Governance, nodeGovernanceHash common.Hash) (types.Governance, error) {
 	if !cfg.IsSet() {
 		return types.Governance{}, nil

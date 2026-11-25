@@ -10,11 +10,8 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/safe"
 )
 
-// selectApproval returns the first candidate that approves exactly this list —
-// an approveMachinePathList CALL to managerAddress binding (extensionID, nonce,
-// messageHash) — and verifies with exactly the check the FCC node applies
-// (safe.Approval.Verify against gov.Signers/gov.Threshold at the candidate's
-// Safe nonce). It returns nil (no error) when none does.
+// selectApproval returns the first candidate approving exactly (extensionID, nonce, messageHash) at managerAddress
+// that passes the node's safe.Approval.Verify check against gov, or nil.
 func selectApproval(
 	candidates []safe.Approval,
 	gov types.Governance,

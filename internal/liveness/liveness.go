@@ -67,10 +67,7 @@ func New(chain headSource, client *redis.Client, info *info.Service, results *re
 	}
 
 	if chain != nil {
-		// Scrape-time read of the source's last block timestamp. A read error reports 0
-		// and consumes the full cChainDelayReadTimeout (reads retry under the ctx);
-		// the source-down case is caught by readiness (FccProxyNotReady), so this gauge targets
-		// the stale-but-reachable source, which reads fine and returns a large delay.
+		// a read error reports 0: readiness covers a down source, this gauge a stale one
 		m.RegisterCChainDelay(func() float64 {
 			delay, err := chainDelay(context.Background(), chain)
 			if err != nil {

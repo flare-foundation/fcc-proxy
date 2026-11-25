@@ -152,10 +152,7 @@ func (s *Service) RunUpdateInfo(ctx context.Context, walletSyncTrigger, backupTr
 	}
 }
 
-// triggerSync starts one sync cycle unless one is already in progress, in which case it
-// records a skip and returns. Sync runs in its own goroutine so the event loop keeps
-// draining keyActions, backups, and backupTrigger while sync waits on the fcc-node (up to
-// minutes per batch). syncing guards against overlapping syncs.
+// triggerSync starts a sync in its own goroutine, so the event loop keeps draining, unless one is running.
 func (s *Service) triggerSync(ctx context.Context) {
 	if !s.syncing.CompareAndSwap(false, true) {
 		logger.Debug("wallet sync skipped: already in progress")
@@ -198,12 +195,8 @@ type WalletsInfoResponse struct {
 	Pairs   []IDPair `json:"pairs"`
 }
 
-// KeyProof returns the signed key existence proof for the given wallet/key pair.
-//
-// The returned pointer is safe to use after the lock is released because
-// SignedKeyExistenceProof values are immutable once created: updateOrAddKey replaces
-// the Proof field with a new pointer rather than writing through the existing one.
-// If that invariant ever changes this must be updated to return a copy.
+// KeyProof returns the signed key existence proof for the wallet/key pair.
+// The pointer outlives the lock because updateOrAddKey replaces proofs instead of mutating them.
 func (s *Service) KeyProof(walletID common.Hash, keyID uint64) (*wallets.SignedKeyExistenceProof, error) {
 	s.RLock()
 	defer s.RUnlock()
@@ -281,9 +274,7 @@ func (s *Service) sync(ctx context.Context) error {
 			return fmt.Errorf("fetching key proofs: %w", err)
 		}
 
-		// Lock is dropped between batches so the event loop keeps draining. Safe today
-		// because event-loop writers don't touch IDPairs in toFetch; a RESTORE landing
-		// here would lose to a stale batch write but self-heals on the next sync.
+		// unlocked between batches; a RESTORE landing meanwhile may be overwritten until the next sync
 		s.Lock()
 		for _, proof := range proofs {
 			info, err := parseKeyExistenceProof(proof)

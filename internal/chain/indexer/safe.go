@@ -13,11 +13,8 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/safe"
 )
 
-// safeApprovals returns the Safe approval candidates for the list (extensionID,
-// nonce) in the (fromBlock, toBlock] window containing its activation: one per
-// MachinePathListApproved log from safeAddress whose emitting execTransaction is
-// indexed, at the Safe nonce the event records. The caller binds a candidate to
-// the list's content.
+// safeApprovals returns one Safe approval candidate per MachinePathListApproved log from safeAddress for the
+// list in (fromBlock, toBlock] whose execTransaction is indexed; the caller binds it to the list's content.
 func (s *Source) safeApprovals(ctx context.Context, extensionID common.Hash, nonce uint64, safeAddress common.Address, fromBlock, toBlock int64) ([]safe.Approval, error) {
 	logs, err := database.FetchLogsByAddressAndTopic0BlockNumber(ctx, s.db, database.LogsParams{
 		Address: s.addresses.MachinePathManager,

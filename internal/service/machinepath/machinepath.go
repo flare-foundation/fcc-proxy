@@ -39,13 +39,8 @@ type Service struct {
 	lastNonce uint64
 }
 
-// NewService creates a machine path list service for the given extension. The
-// manager address must be nonzero; the caller is responsible for skipping
-// service creation when the feature is disabled. governance is the node's
-// governance snapshot as reported in its TEE info; when it is Safe-backed
-// (Safe nonzero), approveMachinePathList Safe transactions are collected and
-// pre-verified as authorization evidence alongside direct governance
-// signatures.
+// NewService creates a machine path list service for the extension; manager must be nonzero.
+// governance is the node's reported governance; if Safe-backed, Safe approvals are collected next to direct signatures.
 func NewService(aq *queue.ActionQueues, responses *result.ResultStorage, managerAddress common.Address, governance types.Governance, extensionID common.Hash, chainID uint64, initialNonce uint64, m *metrics.Metrics) *Service {
 	return &Service{
 		aq:             aq,
