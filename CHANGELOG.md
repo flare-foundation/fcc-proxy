@@ -10,6 +10,7 @@
 - **Breaking:** a result's `data` is base64 instead of hex, and `GET /backup` returns `walletBackup` as a JSON object with camelCase keys instead of base64.
   Results, queued actions and backups stored by an earlier release are not compatible, so deploy with a fresh Redis and a fresh GCS prefix.
 - **Breaking:** metric names are prefixed `fccproxy_` instead of `teeproxy_`, the example alerts are named `FccProxy*` instead of `TeeProxy*`, and the example job selector is `fcc-proxy`; alert rules and dashboards on the old names stop matching.
+- **Behavioral:** when a second instruction with the same ID but different data also reaches its threshold, its threshold action is no longer sent, as fcc-node accepts one threshold per instruction ID and would answer it with status `0`.
 - The live chain-source tests read `FCCPROXY_LIVE_RPC_URL` and `FCCPROXY_LIVE_RELAY` instead of `TEEPROXY_LIVE_RPC_URL` and `TEEPROXY_LIVE_RELAY`.
 
 ## [v0.0.27](https://github.com/flare-foundation/fcc-proxy/tree/v0.0.27) - 2026-11-12
