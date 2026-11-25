@@ -2,6 +2,7 @@ package voting
 
 import (
 	"crypto/ecdsa"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -17,11 +18,11 @@ import (
 	"github.com/flare-foundation/fcc-proxy/pkg/config"
 )
 
-func restoreStorage(t *testing.T, proposalExpiration, restoreExpiration time.Duration) *Storage {
+func restoreStorage(t *testing.T, restoreExpiration time.Duration) *Storage {
 	t.Helper()
 
 	s := NewStorage(t.Context(), &config.Voting{
-		ProposalExpiration:  proposalExpiration,
+		ProposalExpiration:  time.Minute,
 		RestoreExpiration:   restoreExpiration,
 		MaxPendingRequests:  10,
 		HistorySize:         3,
@@ -82,7 +83,7 @@ func TestRestoreWindow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.cmd), func(t *testing.T) {
-			s := restoreStorage(t, time.Minute, time.Hour)
+			s := restoreStorage(t, time.Hour)
 			i := walletInstruction(tt.cmd, string(tt.cmd))
 			addVote(t, s, i, testutil.PrivKey1)
 
@@ -105,7 +106,7 @@ func TestRestoreThresholdDelayed(t *testing.T) {
 	const window = 2 * time.Second
 	const delay = 300 * time.Millisecond
 
-	s := restoreStorage(t, time.Minute, window)
+	s := restoreStorage(t, window)
 	s.thresholdDelay = delay
 	i := walletInstruction(op.KeyDataProviderRestore, "delayed")
 
@@ -131,7 +132,7 @@ func TestRestoreThresholdDelayed(t *testing.T) {
 func TestRestoreThresholdCappedAtEnd(t *testing.T) {
 	const window = 300 * time.Millisecond
 
-	s := restoreStorage(t, time.Minute, window) // default delay outlasts the window
+	s := restoreStorage(t, window) // default delay outlasts the window
 	i := walletInstruction(op.KeyDataProviderRestore, "capped")
 
 	start := time.Now()
@@ -144,4 +145,45 @@ func TestRestoreThresholdCappedAtEnd(t *testing.T) {
 
 	end := receiveAction(t, s.Out)
 	require.Equal(t, types.End, end.Data.SubmissionTag)
+}
+
+func TestRestoreSecondFinalizedHashSendsNothing(t *testing.T) {
+	const window = 500 * time.Millisecond
+
+	s := restoreStorage(t, window)
+	s.thresholdDelay = 100 * time.Millisecond
+
+	first := walletInstruction(op.KeyDataProviderRestore, "conflict")
+	second := walletInstruction(op.KeyDataProviderRestore, "conflict")
+	second.OriginalMessage = []byte("other")
+	firstHash, err := first.HashFixed()
+	require.NoError(t, err)
+
+	addVote(t, s, first, testutil.PrivKey1)
+	addVote(t, s, first, testutil.PrivKey2) // finalizes
+	addVote(t, s, second, testutil.PrivKey1)
+	addVote(t, s, second, testutil.PrivKey3) // finalizes
+
+	for _, tag := range []types.SubmissionTag{types.Threshold, types.End} {
+		a := receiveAction(t, s.Out)
+		require.Equal(t, tag, a.Data.SubmissionTag)
+
+		var d instruction.DataFixed
+		require.NoError(t, json.Unmarshal(a.Data.Message, &d))
+		h, err := d.HashFixed()
+		require.NoError(t, err)
+		require.Equal(t, firstHash, h)
+	}
+
+	// covers the second box's end time
+	require.Never(t, func() bool { return len(s.Out) > 0 }, window, 10*time.Millisecond)
+
+	round, ok := s.Get(1)
+	require.True(t, ok)
+	round.Voting.RLock()
+	boxes := round.Voting.M[first.InstructionID]
+	round.Voting.RUnlock()
+	boxes.RLock()
+	defer boxes.RUnlock()
+	require.Equal(t, firstHash, boxes.FinalizedHash)
 }

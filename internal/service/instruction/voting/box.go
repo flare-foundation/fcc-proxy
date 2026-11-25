@@ -388,21 +388,21 @@ func (vb *voteBox) scheduleEnd(ctx context.Context, out chan *types.Action, boxe
 			return nil
 		}
 
+		if vb.iHash != boxes.FinalizedHash {
+			logger.Debugf("closing finalized box %v, %v that was finalized after %v", vb.iID, vb.iHash, boxes.FinalizedHash)
+			return nil
+		}
+
 		var as []*types.Action
 
-		if vb.finalizedAt != nil {
-			if !thresholdSent {
-				a, err := vb.Action(types.Threshold)
-				if err != nil {
-					logger.Errorf("failed creating threshold action for %v, %v: %v", vb.iID, vb.iHash, err)
-					m.FinalizedActionLost("build_error")
-				} else {
-					as = append(as, a)
-				}
+		if vb.finalizedAt != nil && !thresholdSent {
+			a, err := vb.Action(types.Threshold)
+			if err != nil {
+				logger.Errorf("failed creating threshold action for %v, %v: %v", vb.iID, vb.iHash, err)
+				m.FinalizedActionLost("build_error")
+			} else {
+				as = append(as, a)
 			}
-		} else if vb.iHash != boxes.FinalizedHash {
-			logger.Debugf("closing finalized box %v, %v that was finalized after %v", vb.iID, vb.iHash, boxes.FinalizedHash)
-			return as
 		}
 
 		a, err := vb.Action(types.End)

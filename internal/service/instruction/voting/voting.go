@@ -360,15 +360,14 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 			round.limiter.Decrement(box.Proposer)
 
 			switch {
+			case boxes.FinalizedHash != (common.Hash{}) && boxes.FinalizedHash != hash:
+				// The node accepts one threshold per instruction ID, so only the first finalized hash is sent.
+				logger.Warnf("instruction id %v already finalized with %v, not sending threshold action for %v", box.iID, boxes.FinalizedHash, hash)
 			case box.finalizedAt != nil:
+				boxes.FinalizedHash = hash
 				// never blocks: buffered, sent once
 				box.finalizedAt <- time.Now()
 			default:
-				// The node accepts one threshold per instruction ID, so only the first finalized hash is sent.
-				if boxes.FinalizedHash != (common.Hash{}) && boxes.FinalizedHash != hash {
-					logger.Warnf("instruction id %v already finalized with %v, not sending threshold action for %v", box.iID, boxes.FinalizedHash, hash)
-					break
-				}
 				boxes.FinalizedHash = hash
 
 				a, err := box.Action(types.Threshold)

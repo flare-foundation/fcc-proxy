@@ -13,6 +13,7 @@
 - **Behavioral:** when a second instruction with the same ID but different data also reaches its threshold, its threshold action is no longer sent, as fcc-node accepts one threshold per instruction ID and would answer it with status `0`.
 - **Behavioral:** `KEY_DATA_PROVIDER_RESTORE` votings stay open for the new `[voting] restore_expiration` (default `8h`) instead of `proposal_expiration`.
 - **Behavioral:** a finalized restore sends its threshold action 10 minutes after finalization, or at the end of the voting if that comes first, instead of at the end; the end action is still sent at the end.
+- **Behavioral:** the one-threshold-per-ID rule above also covers restores: a second restore with the same ID sends neither its threshold nor its end action, and `GET /action/status` reports a restore's `finalizedHash` instead of a zero hash.
 - The live chain-source tests read `FCCPROXY_LIVE_RPC_URL` and `FCCPROXY_LIVE_RELAY` instead of `TEEPROXY_LIVE_RPC_URL` and `TEEPROXY_LIVE_RELAY`.
 
 ## [v0.0.27](https://github.com/flare-foundation/fcc-proxy/tree/v0.0.27) - 2026-11-12
