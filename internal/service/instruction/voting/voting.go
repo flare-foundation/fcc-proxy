@@ -20,10 +20,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 )
 
 const maxBIPS = 10000
+
+// restoreThresholdDelay lets a finalized restore collect more key shares before its threshold action.
+const restoreThresholdDelay = 10 * time.Minute
 
 // AddVote rejection sentinels classified by RejectReason; each wraps its HTTP status.
 var (
@@ -61,6 +63,8 @@ type Storage struct {
 	// Service-lifetime ctx; per-box goroutines outlive the request that spawns them.
 	ctx context.Context //nolint:containedctx // service-lifetime ctx, see comment
 
+	thresholdDelay time.Duration // restoreThresholdDelay; tests shorten it
+
 	metrics           *metrics.Metrics
 	collectVoters     bool
 	currentEpoch      atomic.Uint32 // latest stored reward epoch, for the active-voter gauge
@@ -74,13 +78,14 @@ func NewStorage(ctx context.Context, config *config.Voting, meta meta.Meta, m *m
 	out := make(chan *types.Action, config.FinalizedBufferSize)
 
 	return &Storage{
-		Cyclic:        storage.New[uint32, *Round](config.HistorySize),
-		config:        *config,
-		meta:          meta,
-		Out:           out,
-		ctx:           ctx,
-		metrics:       m,
-		collectVoters: m.ActiveVotersEnabled(),
+		Cyclic:         storage.New[uint32, *Round](config.HistorySize),
+		config:         *config,
+		meta:           meta,
+		Out:            out,
+		ctx:            ctx,
+		thresholdDelay: restoreThresholdDelay,
+		metrics:        m,
+		collectVoters:  m.ActiveVotersEnabled(),
 	}
 }
 
@@ -307,8 +312,13 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 
 		box, existsB := boxes.M[hash]
 		if !existsB {
+			expiration := s.config.ProposalExpiration
+			if isRestore(&data.DataFixed) {
+				expiration = s.config.RestoreExpiration
+			}
+
 			var err error
-			box, err = startVoteBox(data, signer, round, s.meta, s.config.ProposalExpiration)
+			box, err = startVoteBox(data, signer, round, s.meta, expiration)
 			if err != nil {
 				return err
 			}
@@ -336,7 +346,7 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 
 		if !existsB {
 			boxes.M[hash] = box
-			go box.scheduleEnd(s.ctx, s.Out, boxes, s.metrics)
+			go box.schedule(s.ctx, s.Out, boxes, s.thresholdDelay, s.metrics)
 			startedBox = true
 		}
 
@@ -350,14 +360,14 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 			round.limiter.Decrement(box.Proposer)
 
 			switch {
-			case data.OPType == op.Wallet.Hash() && data.OPCommand == op.KeyDataProviderRestore.Hash():
-				// only sent "threshold" action at the end of voting if finalized
-			default:
+			case boxes.FinalizedHash != (common.Hash{}) && boxes.FinalizedHash != hash:
 				// The node accepts one threshold per instruction ID, so only the first finalized hash is sent.
-				if boxes.FinalizedHash != (common.Hash{}) && boxes.FinalizedHash != hash {
-					logger.Warnf("instruction id %v already finalized with %v, not sending threshold action for %v", box.iID, boxes.FinalizedHash, hash)
-					break
-				}
+				logger.Warnf("instruction id %v already finalized with %v, not sending threshold action for %v", box.iID, boxes.FinalizedHash, hash)
+			case box.finalizedAt != nil:
+				boxes.FinalizedHash = hash
+				// never blocks: buffered, sent once
+				box.finalizedAt <- time.Now()
+			default:
 				boxes.FinalizedHash = hash
 
 				a, err := box.Action(types.Threshold)

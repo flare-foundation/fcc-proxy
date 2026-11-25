@@ -262,7 +262,7 @@ func RecoverWallet(
 		privKeys = append(privKeys, privKey)
 	}
 
-	endOfVotingTicker := time.NewTicker(pc.Vc.ProposalExpiration)
+	endOfVotingTicker := time.NewTicker(pc.Vc.RestoreExpiration)
 	defer endOfVotingTicker.Stop()
 
 	instructionID, err := random.Hash()

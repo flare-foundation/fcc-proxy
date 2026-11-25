@@ -90,7 +90,14 @@ type voteBox struct {
 	Finalized bool
 	deleted   bool
 
+	finalizedAt chan time.Time // restore only; finalization time for scheduleEnd
+
 	sync.RWMutex
+}
+
+// isRestore reports whether data is a KEY_DATA_PROVIDER_RESTORE.
+func isRestore(data *instruction.DataFixed) bool {
+	return data.OPType == op.Wallet.Hash() && data.OPCommand == op.KeyDataProviderRestore.Hash()
 }
 
 // startVoteBox opens a new voting process: it admits the proposer against the round's limiter
@@ -195,6 +202,9 @@ func newVoteBox(data *instruction.DataFixed, proposer common.Address, threshold 
 		Finalized:      false,
 		deleted:        false,
 	}
+	if isRestore(data) {
+		vb.finalizedAt = make(chan time.Time, 1)
+	}
 
 	return vb, nil
 }
@@ -288,7 +298,7 @@ func (vb *voteBox) addVote(signer common.Address, weight uint16, signature []byt
 	}
 
 	now := time.Now()
-	if vb.EndTime.Before(now) {
+	if !now.Before(vb.EndTime) {
 		return voting.Receipt{}, false, errVotingEnded
 	}
 	if _, exists := vb.votes[signer]; exists {
@@ -333,18 +343,66 @@ func (vb *voteBox) addVote(signer common.Address, weight uint16, signature []byt
 	return receipt, false, nil
 }
 
-func (vb *voteBox) scheduleEnd(ctx context.Context, out chan *types.Action, boxes *voteBoxes, m *metrics.Metrics) {
-	// Cancellable wait so shutdown doesn't leak per-box goroutines.
-	if d := time.Until(vb.EndTime); d > 0 {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(d):
+// schedule sends the box's timed actions: a restore's threshold first, then the end action.
+func (vb *voteBox) schedule(ctx context.Context, out chan *types.Action, boxes *voteBoxes, delay time.Duration, m *metrics.Metrics) {
+	if vb.finalizedAt != nil && !vb.scheduleThreshold(ctx, out, boxes, delay, m) {
+		return
+	}
+	vb.scheduleEnd(ctx, out, boxes, m)
+}
+
+// scheduleThreshold sends a finalized restore box's threshold action delay after finalization,
+// capped at EndTime; false means ctx ended first.
+func (vb *voteBox) scheduleThreshold(ctx context.Context, out chan *types.Action, boxes *voteBoxes, delay time.Duration, m *metrics.Metrics) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(time.Until(vb.EndTime)):
+	case at := <-vb.finalizedAt:
+		if !sleep(ctx, min(time.Until(at.Add(delay)), time.Until(vb.EndTime))) {
+			return false
 		}
 	}
 
-	// Build actions under the locks, send after — a full `out` must not block the locks.
-	actions := func() []*types.Action {
+	// votes stop at EndTime, so a box not finalized by now never will be
+	boxes.RLock()
+	vb.Lock()
+	send := vb.Finalized && vb.iHash == boxes.FinalizedHash
+	var a *types.Action
+	var err error
+	if send {
+		a, err = vb.Action(types.Threshold)
+	}
+	vb.Unlock()
+	boxes.RUnlock()
+
+	switch {
+	case !send:
+		return true
+	case err != nil:
+		logger.Errorf("failed creating threshold action for %v, %v: %v", vb.iID, vb.iHash, err)
+		m.FinalizedActionLost("build_error")
+		return true
+	}
+
+	select {
+	case out <- a:
+		return true
+	case <-ctx.Done():
+		m.FinalizedActionLost("send_cancelled")
+		return false
+	}
+}
+
+// scheduleEnd sends a finalized box's end action and deletes the box at EndTime.
+func (vb *voteBox) scheduleEnd(ctx context.Context, out chan *types.Action, boxes *voteBoxes, m *metrics.Metrics) {
+	// Cancellable wait so shutdown doesn't leak per-box goroutines.
+	if !sleep(ctx, time.Until(vb.EndTime)) {
+		return
+	}
+
+	// Build the action under the locks, send after — a full `out` must not block the locks.
+	action := func() *types.Action {
 		// Acquire boxes.RLock before vb.Lock so the order matches AddVote
 		// (boxes → box) and avoids a lock-order inversion deadlock.
 		boxes.RLock()
@@ -355,9 +413,6 @@ func (vb *voteBox) scheduleEnd(ctx context.Context, out chan *types.Action, boxe
 
 		defer vb.delete()
 
-		opCommand := vb.proposal.instruction.OPCommand
-		opType := vb.proposal.instruction.OPType
-
 		// An unfinalised box that reaches its end time has expired. The proposer's limiter
 		// pending count is intentionally NOT decremented here: the limiter caps unfinalised
 		// votings per provider as anti-spam, so an expired one must keep counting against that
@@ -367,40 +422,43 @@ func (vb *voteBox) scheduleEnd(ctx context.Context, out chan *types.Action, boxe
 			return nil
 		}
 
-		var as []*types.Action
-
-		// send threshold action for KeyDataProviderRestore at the end of voting
-		if opType == op.Wallet.Hash() && opCommand == op.KeyDataProviderRestore.Hash() {
-			a, err := vb.Action(types.Threshold)
-			if err != nil {
-				logger.Errorf("failed creating threshold action for %v, %v: %v", vb.iID, vb.iHash, err)
-				m.FinalizedActionLost("build_error")
-			} else {
-				as = append(as, a)
-			}
-		} else if vb.iHash != boxes.FinalizedHash {
+		if vb.iHash != boxes.FinalizedHash {
 			logger.Debugf("closing finalized box %v, %v that was finalized after %v", vb.iID, vb.iHash, boxes.FinalizedHash)
-			return as
+			return nil
 		}
 
 		a, err := vb.Action(types.End)
 		if err != nil {
 			logger.Errorf("failed creating end action for %v, %v: %v", vb.iID, vb.iHash, err)
 			m.FinalizedActionLost("build_error")
-		} else {
-			as = append(as, a)
+			return nil
 		}
-
-		return as
+		return a
 	}()
+	if action == nil {
+		return
+	}
 
-	for _, a := range actions {
-		select {
-		case out <- a:
-		case <-ctx.Done():
-			m.FinalizedActionLost("send_cancelled")
-			return
-		}
+	select {
+	case out <- action:
+	case <-ctx.Done():
+		m.FinalizedActionLost("send_cancelled")
+	}
+}
+
+// sleep waits for d, returning false if ctx is done first.
+func sleep(ctx context.Context, d time.Duration) bool {
+	if d <= 0 {
+		return true
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
 	}
 }
 

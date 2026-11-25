@@ -163,6 +163,7 @@ func RunProxy(t *testing.T, internalPort, externalPort uint, proxyPk *ecdsa.Priv
 
 	vc := (&config.Voting{
 		ProposalExpiration: 600 * time.Millisecond,
+		RestoreExpiration:  600 * time.Millisecond,
 		MaxPendingRequests: 100,
 	}).SetDefault()
 
