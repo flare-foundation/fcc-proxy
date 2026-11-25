@@ -6,16 +6,16 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	teeUtils "github.com/flare-foundation/fcc-node/pkg/utils"
+	"github.com/flare-foundation/fcc-node/pkg/wallets"
+	"github.com/flare-foundation/fcc-node/pkg/wallets/backup"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/test/integration/utils"
+	testutils "github.com/flare-foundation/fcc-proxy/test/utils"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	teeUtils "github.com/flare-foundation/tee-node/pkg/utils"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
-	"github.com/flare-foundation/tee-node/pkg/wallets/backup"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/test/integration/utils"
-	testutils "github.com/flare-foundation/tee-proxy/test/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -116,13 +116,10 @@ func GetBackup(t *testing.T, pc *utils.ProxyConfig, walletID [32]byte, keyID uin
 	err = teeUtils.VerifySignature(utils.ActionResultSignHash(t, res.Result.Hash()), res.Signature, teeID)
 	require.NoError(t, err)
 
-	var backupResponse wallets.TEEBackupResponse
+	var backupResponse backup.TEEBackupResponse
 	err = json.Unmarshal(res.Result.Data, &backupResponse)
 	require.NoError(t, err)
+	require.NotNil(t, backupResponse.WalletBackup)
 
-	var backup backup.WalletBackup
-	err = json.Unmarshal(backupResponse.WalletBackup, &backup)
-	require.NoError(t, err)
-
-	return &backup
+	return backupResponse.WalletBackup
 }

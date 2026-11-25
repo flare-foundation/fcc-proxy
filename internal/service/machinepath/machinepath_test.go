@@ -15,24 +15,24 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/tee/machinepathmanager"
 	"github.com/flare-foundation/go-flare-common/pkg/convert"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	cmpaths "github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
 
-	"github.com/flare-foundation/tee-proxy/internal/chain/indexer"
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/internal/service/result"
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
+	"github.com/flare-foundation/fcc-proxy/internal/chain/indexer"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/internal/service/result"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 )
 
-// machinepathPollCount reads teeproxy_machinepath_poll_total for the given result label
+// machinepathPollCount reads fccproxy_machinepath_poll_total for the given result label
 // from m's registry, returning 0 if no series with that label exists.
 func machinepathPollCount(t *testing.T, m *metrics.Metrics, result string) float64 {
 	t.Helper()
@@ -41,7 +41,7 @@ func machinepathPollCount(t *testing.T, m *metrics.Metrics, result string) float
 	require.NoError(t, err)
 
 	for _, f := range fams {
-		if f.GetName() != "teeproxy_machinepath_poll_total" {
+		if f.GetName() != "fccproxy_machinepath_poll_total" {
 			continue
 		}
 		for _, mc := range f.GetMetric() {
@@ -292,7 +292,7 @@ func TestPollWaitErrorIncrementsMachinepathPoll(t *testing.T) {
 }
 
 // TestPollConfirmedAdvancesLastNonce guards the success path that none of the other poll
-// tests reach: once the TEE node confirms the SET_MACHINE_PATH_LIST action (Status 1),
+// tests reach: once the FCC node confirms the SET_MACHINE_PATH_LIST action (Status 1),
 // poll must record "confirmed" and advance lastNonce so the next poll does not resubmit
 // the same list.
 func TestPollConfirmedAdvancesLastNonce(t *testing.T) {

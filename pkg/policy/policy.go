@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/registry"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
 )
 
 var errNoSigningPolicyEvents = errors.New("no signing policy events found")

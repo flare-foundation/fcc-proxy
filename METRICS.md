@@ -1,6 +1,6 @@
 # Metrics
 
-Prometheus metrics exposed by the TEE proxy.
+Prometheus metrics exposed by the FCC proxy.
 
 All metrics are opt-in.
 Nothing is collected and the `/metrics` endpoint is not mounted unless `[metrics] enable = true`.
@@ -11,7 +11,7 @@ Set the Prometheus `scrape_timeout` to at least 10s.
 When the `queue` group is enabled, a scrape reads each action queue's depth with a Redis `LLEN` bounded by a 2s timeout, and the three reads run serially during collection, so a fully unreachable Redis can stretch a single scrape to roughly 6s.
 This delays only the scrape — no request-handling path holds a lock across that read — but a tighter `scrape_timeout` would mark scrapes failed during a Redis incident.
 
-Every metric name is prefixed with `teeproxy_` (except the standard `go_*` and `process_*` runtime collectors).
+Every metric name is prefixed with `fccproxy_` (except the standard `go_*` and `process_*` runtime collectors).
 Collection is split into groups that can be toggled independently; an omitted group inherits `enable`, and setting a group to `false` omits just that group.
 Gauges marked **scrape-time** are computed live when `/metrics` is scraped.
 
@@ -34,18 +34,18 @@ For the histograms, use `histogram_quantile(0.95, rate(<name>_bucket[5m]))` for 
 | `attestation`   | attestation verify outcomes                                                                                            |
 | `policy`        | active/node-applied/consensus/resident reward-epoch gauges, fetch-loop staleness timestamp, and update-outcome counter |
 | `liveness`      | readiness gauge, info-staleness gauge, and chain-source delay gauge                                                    |
-| `node`          | TEE-node response-wait latency and outcomes; machine-path poll-cycle outcomes                                          |
+| `node`          | FCC-node response-wait latency and outcomes; machine-path poll-cycle outcomes                                          |
 | `runtime`       | Go runtime/process collectors and build info                                                                           |
 
 ## Alerting
 
 Example Prometheus alerting rules live in [`examples/monitoring/alerts.yaml`](examples/monitoring/alerts.yaml) and are syntax-checked in CI (`promtool check rules`).
 They are starting points: thresholds mirror the proxy's in-code constants but the right values depend on your traffic and SLOs.
-The expressions carry no scrape-job selector, so add your own (e.g. `{job="tee-proxy"}`), and each rule needs its metric group enabled.
+The expressions carry no scrape-job selector, so add your own (e.g. `{job="fcc-proxy"}`), and each rule needs its metric group enabled.
 
 Severities follow a simple rule: a warning fires on the first occurrence (awareness), and a critical pages.
 An alert pages either because a single occurrence is already the incident — security breaches and irrecoverable losses page on the first event and never warn first — or because a warning-class degradation has persisted (a `…Sustained` sibling with a longer window).
-Persistence-based escalation only works for signals emitted on the proxy's own cadence (a scrape, the readiness probe, or a background loop); request-path signals like HTTP 5xx page on a failure ratio instead, with `TeeProxyNotReady` as the traffic-independent backstop, and background loops page on a heartbeat going stale (e.g. `policy_last_fetch_timestamp_seconds`).
+Persistence-based escalation only works for signals emitted on the proxy's own cadence (a scrape, the readiness probe, or a background loop); request-path signals like HTTP 5xx page on a failure ratio instead, with `FccProxyNotReady` as the traffic-independent backstop, and background loops page on a heartbeat going stale (e.g. `policy_last_fetch_timestamp_seconds`).
 The two `magic_pass` rules are production-only — `magic_pass` is expected in test environments.
 
 Page-now (critical) signals, grouped by why they page:
@@ -54,45 +54,45 @@ Integrity and security — page on the first occurrence:
 
 | Alert                                   | Condition                                                                          | Why it pages                                                                                |
 | --------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `TeeProxyResultsLost`                   | `increase(teeproxy_results_lost_total[5m]) > 0`                                    | Irrecoverable, client-invisible result loss.                                                |
-| `TeeProxyFinalizedActionEnqueueFailing` | `increase(teeproxy_finalized_action_enqueue_failed_total[5m]) > 0`                 | Consensus reached but the action failed to enqueue to the main queue.                       |
-| `TeeProxyFinalizedActionLost`           | `increase(teeproxy_finalized_action_lost_total{reason="build_error"}[5m]) > 0`     | Finalized action dropped before enqueue (serialize failure) — irrecoverable.                |
-| `TeeProxyFinalizedActionSendFailed`     | `increase(teeproxy_finalized_action_lost_total{reason="send_failed"}[5m]) > 0`     | Finalized action given up after its delivery attempts to the node were spent — irrecoverable. |
-| `TeeProxyActionRedeliveryLost`          | `sum by (queue) (increase(teeproxy_action_redelivery_total{result=~"exhausted\|requeue_failed"}[5m])) > 0` | An action was given up after repeated undelivered sends, or could not be put back on its queue — irrecoverable; unlike `…SendFailed` this covers the direct and backup queues too. |
-| `TeeProxyResultWrongTeeID`              | `increase(teeproxy_results_rejected_total{reason="wrong_tee_id"}[5m]) > 0`         | Result signed by a non-bound key on the TEE-only endpoint — tamper / mis-route.             |
-| `TeeProxyResultBadSigner`               | `increase(teeproxy_results_rejected_total{reason="bad_signer"}[5m]) > 0`           | Result with an unrecoverable signature on the TEE-only endpoint — trusted-TEE malfunction.  |
-| `TeeProxyInfoVerifySignatureFailing`    | `increase(teeproxy_info_refresh_failures_total{stage="verify_signature"}[5m]) > 0` | TEE_INFO signature verification failed — info-path sibling of `wrong_tee_id`; never retried, so one attempt is one refresh. |
-| `TeeProxyAttestationFailing`            | `increase(teeproxy_attestation_verify_total{result="error"}[10m]) > 0`             | Attestation verification failed — possible compromise.                                      |
-| `TeeProxyMagicPassAccepted`             | `increase(teeproxy_attestation_verify_total{reason="magic_pass"}[10m]) > 0`        | Attestation bypassed via the magic_pass sentinel (`result="ok"`). **Production-only rule.** |
-| `TeeProxyMagicPassAllowed`              | `teeproxy_attestation_posture{setting="magic_pass_allowed"} == 1` for 5m           | Configured to allow the JWT-chain bypass. **Production-only rule.**                         |
-| `TeeProxyPolicyPubkeyMismatch` | `increase(teeproxy_policy_update_total{result="pubkey_mismatch"}[15m]) > 0` | A voter registration signature does not recover to its address — data/format-integrity fault blocking the rollover; pages on first. |
+| `FccProxyResultsLost`                   | `increase(fccproxy_results_lost_total[5m]) > 0`                                    | Irrecoverable, client-invisible result loss.                                                |
+| `FccProxyFinalizedActionEnqueueFailing` | `increase(fccproxy_finalized_action_enqueue_failed_total[5m]) > 0`                 | Consensus reached but the action failed to enqueue to the main queue.                       |
+| `FccProxyFinalizedActionLost`           | `increase(fccproxy_finalized_action_lost_total{reason="build_error"}[5m]) > 0`     | Finalized action dropped before enqueue (serialize failure) — irrecoverable.                |
+| `FccProxyFinalizedActionSendFailed`     | `increase(fccproxy_finalized_action_lost_total{reason="send_failed"}[5m]) > 0`     | Finalized action given up after its delivery attempts to the node were spent — irrecoverable. |
+| `FccProxyActionRedeliveryLost`          | `sum by (queue) (increase(fccproxy_action_redelivery_total{result=~"exhausted\|requeue_failed"}[5m])) > 0` | An action was given up after repeated undelivered sends, or could not be put back on its queue — irrecoverable; unlike `…SendFailed` this covers the direct and backup queues too. |
+| `FccProxyResultWrongTeeID`              | `increase(fccproxy_results_rejected_total{reason="wrong_tee_id"}[5m]) > 0`         | Result signed by a non-bound key on the TEE-only endpoint — tamper / mis-route.             |
+| `FccProxyResultBadSigner`               | `increase(fccproxy_results_rejected_total{reason="bad_signer"}[5m]) > 0`           | Result with an unrecoverable signature on the TEE-only endpoint — trusted-TEE malfunction.  |
+| `FccProxyInfoVerifySignatureFailing`    | `increase(fccproxy_info_refresh_failures_total{stage="verify_signature"}[5m]) > 0` | TEE_INFO signature verification failed — info-path sibling of `wrong_tee_id`; never retried, so one attempt is one refresh. |
+| `FccProxyAttestationFailing`            | `increase(fccproxy_attestation_verify_total{result="error"}[10m]) > 0`             | Attestation verification failed — possible compromise.                                      |
+| `FccProxyMagicPassAccepted`             | `increase(fccproxy_attestation_verify_total{reason="magic_pass"}[10m]) > 0`        | Attestation bypassed via the magic_pass sentinel (`result="ok"`). **Production-only rule.** |
+| `FccProxyMagicPassAllowed`              | `fccproxy_attestation_posture{setting="magic_pass_allowed"} == 1` for 5m           | Configured to allow the JWT-chain bypass. **Production-only rule.**                         |
+| `FccProxyPolicyPubkeyMismatch` | `increase(fccproxy_policy_update_total{result="pubkey_mismatch"}[15m]) > 0` | A voter registration signature does not recover to its address — data/format-integrity fault blocking the rollover; pages on first. |
 
 Availability — probe/heartbeat-driven, so traffic-independent:
 
 | Alert                 | Condition                                            | Why it pages                                                                                                                                |
 | --------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TeeProxyNotReady`    | `teeproxy_ready == 0` for 2m                         | Readiness failing; the traffic-independent backstop for the request-path warnings.                                                          |
-| `TeeProxyInfoStale`   | `teeproxy_info_service_delay_seconds > 140` for 2m   | Info past the 140s readiness tolerance (`liveness.go` `infoDelayTolerance`).                                                                |
-| `TeeProxyCChainStale` | `teeproxy_cchain_indexer_delay_seconds > 140` for 2m | chain source past 140s (`cChainDelayTolerance`); attributes the failure to the c-chain leg, which `TeeProxyNotReady` cannot.             |
-| `TeeProxyDown`        | `up{job="tee-proxy"} == 0` for 2m                    | Prometheus cannot scrape the proxy. **Example only** — keys on the synthetic `up` metric; the `job` selector must match your scrape config. |
-| `TeeProxyPolicyFetchStalled` | `time() - teeproxy_policy_last_fetch_timestamp_seconds > 7200 and teeproxy_policy_last_fetch_timestamp_seconds > 0` for 5m | Signing-policy rollover stuck >2h (overdue gate); the heartbeat freezes once a rollover cannot complete, so it catches any stuck stage. |
+| `FccProxyNotReady`    | `fccproxy_ready == 0` for 2m                         | Readiness failing; the traffic-independent backstop for the request-path warnings.                                                          |
+| `FccProxyInfoStale`   | `fccproxy_info_service_delay_seconds > 140` for 2m   | Info past the 140s readiness tolerance (`liveness.go` `infoDelayTolerance`).                                                                |
+| `FccProxyCChainStale` | `fccproxy_cchain_indexer_delay_seconds > 140` for 2m | chain source past 140s (`cChainDelayTolerance`); attributes the failure to the c-chain leg, which `FccProxyNotReady` cannot.             |
+| `FccProxyDown`        | `up{job="fcc-proxy"} == 0` for 2m                    | Prometheus cannot scrape the proxy. **Example only** — keys on the synthetic `up` metric; the `job` selector must match your scrape config. |
+| `FccProxyPolicyFetchStalled` | `time() - fccproxy_policy_last_fetch_timestamp_seconds > 7200 and fccproxy_policy_last_fetch_timestamp_seconds > 0` for 5m | Signing-policy rollover stuck >2h (overdue gate); the heartbeat freezes once a rollover cannot complete, so it catches any stuck stage. |
 
 A startup config refusal — a governance-hash mismatch, or any of the other `Panicf` exits before `SignalStartupFinished` — is intentionally metric-free: the proxy dies before steady state, and in the resulting crash loop per-restart counter resets defeat `increase()`-based alerting, so a metric would only appear to provide coverage.
-Detection is the panic log line plus `TeeProxyDown`/`TeeProxyNotReady` and platform restart counts.
+Detection is the panic log line plus `FccProxyDown`/`FccProxyNotReady` and platform restart counts.
 
-Sustained degradation — pages after the condition persists (most have a warning sibling below; `TeeProxyWalletSyncWedged` pages directly):
+Sustained degradation — pages after the condition persists (most have a warning sibling below; `FccProxyWalletSyncWedged` pages directly):
 
 | Alert                                   | Condition                                                                                 | Why it pages                                                                                |
 | --------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `TeeProxyHttp5xxHigh`                   | 5xx ratio > 50% with a min-sample guard, for 10m                                          | Majority of requests 5xx (ratio, so volume-robust).                                         |
-| `TeeProxyStorageErrorsSustained`        | `rate(teeproxy_storage_operations_total{outcome=~"error\|timeout"}[5m]) > 0` for 10m      | Redis/GCS erroring or timing out continuously (`namespace="backups"` is silent recovery-data loss). |
-| `TeeProxyActionEnqueueFailingSustained` | `rate(teeproxy_action_enqueue_total{result=~"store_error\|queue_error"}[5m]) > 0` for 10m | Ingest path cannot persist actions.                                                         |
-| `TeeProxyActionOrphanedSustained`       | `rate(teeproxy_action_dequeue_total{result=~"error\|action_not_found"}[5m]) > 0` for 15m  | Systematic loss of queued (main-queue: finalized) work.                                     |
-| `TeeProxyWalletSyncFailingSustained`    | `sum(increase(teeproxy_wallet_sync_total{result=~"enqueue_error\|wait_error\|parse_error"}[3h])) >= 3` | Key/proof cache not refreshed across 3+ hourly cycles.                             |
-| `TeeProxyWalletSyncWedged`              | `increase(teeproxy_wallet_sync_total{result="skipped"}[3h]) >= 3`                         | `syncing` flag wedged 3+ hours.                                                             |
+| `FccProxyHttp5xxHigh`                   | 5xx ratio > 50% with a min-sample guard, for 10m                                          | Majority of requests 5xx (ratio, so volume-robust).                                         |
+| `FccProxyStorageErrorsSustained`        | `rate(fccproxy_storage_operations_total{outcome=~"error\|timeout"}[5m]) > 0` for 10m      | Redis/GCS erroring or timing out continuously (`namespace="backups"` is silent recovery-data loss). |
+| `FccProxyActionEnqueueFailingSustained` | `rate(fccproxy_action_enqueue_total{result=~"store_error\|queue_error"}[5m]) > 0` for 10m | Ingest path cannot persist actions.                                                         |
+| `FccProxyActionOrphanedSustained`       | `rate(fccproxy_action_dequeue_total{result=~"error\|action_not_found"}[5m]) > 0` for 15m  | Systematic loss of queued (main-queue: finalized) work.                                     |
+| `FccProxyWalletSyncFailingSustained`    | `sum(increase(fccproxy_wallet_sync_total{result=~"enqueue_error\|wait_error\|parse_error"}[3h])) >= 3` | Key/proof cache not refreshed across 3+ hourly cycles.                             |
+| `FccProxyWalletSyncWedged`              | `increase(fccproxy_wallet_sync_total{result="skipped"}[3h]) >= 3`                         | `syncing` flag wedged 3+ hours.                                                             |
 
-These counters are pre-initialized to 0 at startup (when their group is enabled) so the first, possibly one-shot, event satisfies `increase(...) > 0`: `teeproxy_results_rejected_total`, `teeproxy_finalized_action_lost_total`, `teeproxy_attestation_verify_total`, `teeproxy_info_refresh_failures_total`, `teeproxy_info_refresh_exhausted_total`, `teeproxy_policy_update_total`, `teeproxy_wallet_sync_total`, `teeproxy_action_enqueue_total`, `teeproxy_action_dequeue_total`, `teeproxy_action_redelivery_total`, `teeproxy_machinepath_poll_total`, `teeproxy_node_response_wait_total`, and `teeproxy_result_channel_dropped_total`.
-`teeproxy_http_requests_total` (dynamic route label) and `teeproxy_storage_operations_total` (backend/namespace fixed at wiring time) are not pre-initialized, so their warnings fire on the second occurrence of a brand-new label series.
+These counters are pre-initialized to 0 at startup (when their group is enabled) so the first, possibly one-shot, event satisfies `increase(...) > 0`: `fccproxy_results_rejected_total`, `fccproxy_finalized_action_lost_total`, `fccproxy_attestation_verify_total`, `fccproxy_info_refresh_failures_total`, `fccproxy_info_refresh_exhausted_total`, `fccproxy_policy_update_total`, `fccproxy_wallet_sync_total`, `fccproxy_action_enqueue_total`, `fccproxy_action_dequeue_total`, `fccproxy_action_redelivery_total`, `fccproxy_machinepath_poll_total`, `fccproxy_node_response_wait_total`, and `fccproxy_result_channel_dropped_total`.
+`fccproxy_http_requests_total` (dynamic route label) and `fccproxy_storage_operations_total` (backend/namespace fixed at wiring time) are not pre-initialized, so their warnings fire on the second occurrence of a brand-new label series.
 Any future counter feeding an `increase(...) > 0` alert must be pre-initialized the same way — a `CounterVec` series born at 1 never fires `increase > 0`.
 
 Warnings (lead time before a page), grouped:
@@ -101,53 +101,53 @@ First-occurrence awareness for the escalating pairs (each has a `…Sustained`/c
 
 | Alert                          | Condition                                                                                                     | Signal                                                                                                    |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `TeeProxyHttp5xx`              | `sum by (server) (increase(teeproxy_http_requests_total{status_class="5xx"}[5m])) > 0`                        | Any 5xx (incl. handler panics); escalates via `TeeProxyHttp5xxHigh` / `TeeProxyNotReady`.                 |
-| `TeeProxyStorageErrors`        | `sum by (backend, namespace) (increase(teeproxy_storage_operations_total{outcome=~"error\|timeout"}[5m])) > 0` | Any Redis/GCS error or consumed time budget; escalates via `TeeProxyStorageErrorsSustained`.        |
-| `TeeProxyActionEnqueueFailing` | `sum by (queue) (increase(teeproxy_action_enqueue_total{result=~"store_error\|queue_error"}[5m])) > 0`        | Any ingest enqueue error; escalates via `…Sustained`.                                                     |
-| `TeeProxyActionOrphaned`       | `sum by (queue) (increase(teeproxy_action_dequeue_total{result=~"error\|action_not_found"}[5m])) > 0`         | An orphaned action (body unfetchable); a single one can be benign TTL expiry. Escalates via `…Sustained`. |
-| `TeeProxyWalletSyncFailing`    | `increase(teeproxy_wallet_sync_total{result=~"enqueue_error\|wait_error\|parse_error"}[15m]) > 0`             | A sync cycle failed; escalates via `…Sustained`.                                                          |
-| `TeeProxyInfoRefreshFailing`   | `sum(increase(teeproxy_info_refresh_exhausted_total{stage!~"verify_signature\|verify_attestation"}[10m])) > 0` | A refresh failed on an operational stage and its retries did not recover it; sustained failure escalates via `TeeProxyInfoStale`. |
+| `FccProxyHttp5xx`              | `sum by (server) (increase(fccproxy_http_requests_total{status_class="5xx"}[5m])) > 0`                        | Any 5xx (incl. handler panics); escalates via `FccProxyHttp5xxHigh` / `FccProxyNotReady`.                 |
+| `FccProxyStorageErrors`        | `sum by (backend, namespace) (increase(fccproxy_storage_operations_total{outcome=~"error\|timeout"}[5m])) > 0` | Any Redis/GCS error or consumed time budget; escalates via `FccProxyStorageErrorsSustained`.        |
+| `FccProxyActionEnqueueFailing` | `sum by (queue) (increase(fccproxy_action_enqueue_total{result=~"store_error\|queue_error"}[5m])) > 0`        | Any ingest enqueue error; escalates via `…Sustained`.                                                     |
+| `FccProxyActionOrphaned`       | `sum by (queue) (increase(fccproxy_action_dequeue_total{result=~"error\|action_not_found"}[5m])) > 0`         | An orphaned action (body unfetchable); a single one can be benign TTL expiry. Escalates via `…Sustained`. |
+| `FccProxyWalletSyncFailing`    | `increase(fccproxy_wallet_sync_total{result=~"enqueue_error\|wait_error\|parse_error"}[15m]) > 0`             | A sync cycle failed; escalates via `…Sustained`.                                                          |
+| `FccProxyInfoRefreshFailing`   | `sum(increase(fccproxy_info_refresh_exhausted_total{stage!~"verify_signature\|verify_attestation"}[10m])) > 0` | A refresh failed on an operational stage and its retries did not recover it; sustained failure escalates via `FccProxyInfoStale`. |
 
 Other warnings (lead time / degradation that self-heals):
 
 | Alert                                               | Condition                                                                                                                                  | Signal                                                                                             |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `TeeProxyInfoStaleWarning`                          | `teeproxy_info_service_delay_seconds > 70` for 1m                                                                                          | Half the 140s tolerance — lead time before readiness flips.                                        |
-| `TeeProxyCChainDelayWarning`                        | `teeproxy_cchain_indexer_delay_seconds > 70` for 1m                                                                                        | Half the 140s c-chain tolerance — lead time before readiness flips.                                |
-| `TeeProxyNodeWaitTimeouts`                          | `sum by (path) (increase(teeproxy_node_response_wait_total{result="timeout"}[15m])) > 0`                                                   | TEE node slow or unreachable on a path; `increase()` with no `for:` so it fires at any path cadence (a `rate>0` dwell can never complete on the hourly wallet paths). |
-| `TeeProxyMachinepathPollErrors`                     | `increase(teeproxy_machinepath_poll_total{result=~"fetch_error\|build_error\|enqueue_error\|wait_error"}[15m]) > 0`                        | A machine-path poll cycle failed before the node saw the action, or waiting for its confirmation.  |
-| `TeeProxyActionDequeueFailing`                      | `sum by (queue) (increase(teeproxy_action_dequeue_total{result="dequeue_error"}[5m])) > 0`                                                 | Dequeue pops failing at Redis (no ID consumed, nothing lost); node-poll-driven, so traffic-independent. |
-| `TeeProxyActionRedelivering`                        | `sum by (queue) (increase(teeproxy_action_redelivery_total{result="requeued"}[5m])) > 0`                                                   | Node polls are ending before the action reaches the node (poll timeout or broken connection); the action is retried on the next poll and escalates via `TeeProxyActionRedeliveryLost`. |
-| `TeeProxyMachinepathNoAuthorization`                | `increase(teeproxy_machinepath_poll_total{result="no_authorization"}[15m]) > 0`                                                            | An activated list has no forwardable authorization evidence (no forwardable direct signatures, no verifiable Safe approval) — a governance-config condition, retried every poll until resolved. |
-| `TeeProxyGovernanceNotConfigured`                   | `teeproxy_governance_posture{setting="configured"} == 0` for 15m                                                                           | Running without `[governance]` — legacy direct-signature path: signatures forwarded unfiltered (lists involving several governances are rejected), nothing cross-checked. **Deployment-pinned rule** (enable where governance is mandatory).                            |
-| `TeeProxyGovernanceHashDrift`                       | `teeproxy_governance_hash_match == 0` for 15m                                                                                              | Node governance rotated after startup; signature filtering and Safe pre-verification are stale — update `[governance]` and restart.                                                                          |
-| `TeeProxyMachinepathRejected`                       | `increase(teeproxy_machinepath_poll_total{result="rejected"}[15m]) > 0`                                                                    | Node returned a non-success status for the machine-path action.                                    |
-| `TeeProxyConsensusStall`                            | votings started but none finalized in 15m                                                                                                  | Offline voters / mis-set threshold / partition.                                                    |
-| `TeeProxyLowVotingParticipation`                    | `teeproxy_active_data_provider_weight_bips <= teeproxy_voting_threshold_bips and increase(teeproxy_votings_started_total[1h]) > 0` for 1h   | Participating provider weight this epoch never exceeded the threshold, so default-threshold votings cannot finalize; the activity guard keeps idle epochs and restarts from paging. |
-| `TeeProxyPolicyUpdateFailing`                       | `sum(increase(teeproxy_policy_update_total{result=~"build_failed\|indexer\|enqueue_failed\|await_failed\|rejected"}[15m])) > 3` for 15m | A rollover keeps failing on a fast-retry reason (build/indexer/enqueue/await/rejected); a genuine wedge pages via `TeeProxyPolicyFetchStalled`.                         |
-| `TeeProxySigningPolicySignaturesShort` | `increase(teeproxy_policy_update_total{result="sig_deadline"}[35m]) > 0` | Stage-2 signature collection hit its 30m deadline; normal early in a rollover, pages via the overdue gate if it persists. |
-| `TeeProxyPolicyReconcileFrequent` | `increase(teeproxy_policy_update_total{result="reconciled"}[6h]) > 1` | Repeated reconciles — stage-4 confirmations timing out though the node applied the policy. |
-| `TeeProxyNodePolicyRollback`                        | `teeproxy_policy_active_reward_epoch > teeproxy_node_applied_policy_epoch and teeproxy_node_applied_policy_epoch > 0` for 15m              | Node's applied policy is behind the proxy — a rollback reconcile cannot heal.                      |
-| `TeeProxyQueueBackpressure` / `…Direct` / `…Backup` | `teeproxy_action_queue_depth{queue="…"} > 100` for 10m                                                                                     | Queue not draining (`queue.go` `queueDepthWarnThreshold`).                                         |
-| `TeeProxyQueueDepthReadFailing`                     | `sum(rate(teeproxy_action_queue_depth_read_failures_total[5m])) > 0` for 10m                                                               | Scrape-time depth reads failing — depth gauge reads 0, backpressure alerts blind.                  |
-| `TeeProxyResultChannelDropped`                      | `increase(teeproxy_result_channel_dropped_total{channel=~"key_actions\|backups"}[15m]) > 0`                                                | Wallet event loop stalled; drops self-heal at the next sync/trigger.                               |
-| `TeeProxyWalletKeyUpdateFailed`                     | `increase(teeproxy_wallet_key_update_failed_total[15m]) > 0`                                                                               | Signed KEY\_\* result failed to apply — cache stale until the next hourly sync.                    |
-| `TeeProxyWalletBackupApplyFailed`                   | `increase(teeproxy_wallet_backup_apply_failed_total[15m]) > 0`                                                                             | Signed TEE_BACKUP result failed to decode before storage — recovery data not persisted.            |
-| `TeeProxyAttestationMetricsMissing`                 | `absent(teeproxy_attestation_verify_total)` for 15m                                                                                        | The `attestation` group is disabled, so its page-now rules are inert.                              |
-| `TeeProxyResultMetricsMissing`                      | `absent(teeproxy_results_rejected_total)` for 15m                                                                                          | The `result` group is disabled, so `TeeProxyResultWrongTeeID`/`BadSigner` are inert.               |
+| `FccProxyInfoStaleWarning`                          | `fccproxy_info_service_delay_seconds > 70` for 1m                                                                                          | Half the 140s tolerance — lead time before readiness flips.                                        |
+| `FccProxyCChainDelayWarning`                        | `fccproxy_cchain_indexer_delay_seconds > 70` for 1m                                                                                        | Half the 140s c-chain tolerance — lead time before readiness flips.                                |
+| `FccProxyNodeWaitTimeouts`                          | `sum by (path) (increase(fccproxy_node_response_wait_total{result="timeout"}[15m])) > 0`                                                   | FCC node slow or unreachable on a path; `increase()` with no `for:` so it fires at any path cadence (a `rate>0` dwell can never complete on the hourly wallet paths). |
+| `FccProxyMachinepathPollErrors`                     | `increase(fccproxy_machinepath_poll_total{result=~"fetch_error\|build_error\|enqueue_error\|wait_error"}[15m]) > 0`                        | A machine-path poll cycle failed before the node saw the action, or waiting for its confirmation.  |
+| `FccProxyActionDequeueFailing`                      | `sum by (queue) (increase(fccproxy_action_dequeue_total{result="dequeue_error"}[5m])) > 0`                                                 | Dequeue pops failing at Redis (no ID consumed, nothing lost); node-poll-driven, so traffic-independent. |
+| `FccProxyActionRedelivering`                        | `sum by (queue) (increase(fccproxy_action_redelivery_total{result="requeued"}[5m])) > 0`                                                   | Node polls are ending before the action reaches the node (poll timeout or broken connection); the action is retried on the next poll and escalates via `FccProxyActionRedeliveryLost`. |
+| `FccProxyMachinepathNoAuthorization`                | `increase(fccproxy_machinepath_poll_total{result="no_authorization"}[15m]) > 0`                                                            | An activated list has no forwardable authorization evidence (no forwardable direct signatures, no verifiable Safe approval) — a governance-config condition, retried every poll until resolved. |
+| `FccProxyGovernanceNotConfigured`                   | `fccproxy_governance_posture{setting="configured"} == 0` for 15m                                                                           | Running without `[governance]` — legacy direct-signature path: signatures forwarded unfiltered (lists involving several governances are rejected), nothing cross-checked. **Deployment-pinned rule** (enable where governance is mandatory).                            |
+| `FccProxyGovernanceHashDrift`                       | `fccproxy_governance_hash_match == 0` for 15m                                                                                              | Node governance rotated after startup; signature filtering and Safe pre-verification are stale — update `[governance]` and restart.                                                                          |
+| `FccProxyMachinepathRejected`                       | `increase(fccproxy_machinepath_poll_total{result="rejected"}[15m]) > 0`                                                                    | Node returned a non-success status for the machine-path action.                                    |
+| `FccProxyConsensusStall`                            | votings started but none finalized in 15m                                                                                                  | Offline voters / mis-set threshold / partition.                                                    |
+| `FccProxyLowVotingParticipation`                    | `fccproxy_active_data_provider_weight_bips <= fccproxy_voting_threshold_bips and increase(fccproxy_votings_started_total[1h]) > 0` for 1h   | Participating provider weight this epoch never exceeded the threshold, so default-threshold votings cannot finalize; the activity guard keeps idle epochs and restarts from paging. |
+| `FccProxyPolicyUpdateFailing`                       | `sum(increase(fccproxy_policy_update_total{result=~"build_failed\|indexer\|enqueue_failed\|await_failed\|rejected"}[15m])) > 3` for 15m | A rollover keeps failing on a fast-retry reason (build/indexer/enqueue/await/rejected); a genuine wedge pages via `FccProxyPolicyFetchStalled`.                         |
+| `FccProxySigningPolicySignaturesShort` | `increase(fccproxy_policy_update_total{result="sig_deadline"}[35m]) > 0` | Stage-2 signature collection hit its 30m deadline; normal early in a rollover, pages via the overdue gate if it persists. |
+| `FccProxyPolicyReconcileFrequent` | `increase(fccproxy_policy_update_total{result="reconciled"}[6h]) > 1` | Repeated reconciles — stage-4 confirmations timing out though the node applied the policy. |
+| `FccProxyNodePolicyRollback`                        | `fccproxy_policy_active_reward_epoch > fccproxy_node_applied_policy_epoch and fccproxy_node_applied_policy_epoch > 0` for 15m              | Node's applied policy is behind the proxy — a rollback reconcile cannot heal.                      |
+| `FccProxyQueueBackpressure` / `…Direct` / `…Backup` | `fccproxy_action_queue_depth{queue="…"} > 100` for 10m                                                                                     | Queue not draining (`queue.go` `queueDepthWarnThreshold`).                                         |
+| `FccProxyQueueDepthReadFailing`                     | `sum(rate(fccproxy_action_queue_depth_read_failures_total[5m])) > 0` for 10m                                                               | Scrape-time depth reads failing — depth gauge reads 0, backpressure alerts blind.                  |
+| `FccProxyResultChannelDropped`                      | `increase(fccproxy_result_channel_dropped_total{channel=~"key_actions\|backups"}[15m]) > 0`                                                | Wallet event loop stalled; drops self-heal at the next sync/trigger.                               |
+| `FccProxyWalletKeyUpdateFailed`                     | `increase(fccproxy_wallet_key_update_failed_total[15m]) > 0`                                                                               | Signed KEY\_\* result failed to apply — cache stale until the next hourly sync.                    |
+| `FccProxyWalletBackupApplyFailed`                   | `increase(fccproxy_wallet_backup_apply_failed_total[15m]) > 0`                                                                             | Signed TEE_BACKUP result failed to decode before storage — recovery data not persisted.            |
+| `FccProxyAttestationMetricsMissing`                 | `absent(fccproxy_attestation_verify_total)` for 15m                                                                                        | The `attestation` group is disabled, so its page-now rules are inert.                              |
+| `FccProxyResultMetricsMissing`                      | `absent(fccproxy_results_rejected_total)` for 15m                                                                                          | The `result` group is disabled, so `FccProxyResultWrongTeeID`/`BadSigner` are inert.               |
 
-`TeeProxyConsensusStall` has up to ~30m worst-case detection latency: a 15m `increase(...)==0` window sits under a 15m `for`, and both are deliberately conservative to avoid false positives during naturally quiet, block-paced periods.
+`FccProxyConsensusStall` has up to ~30m worst-case detection latency: a 15m `increase(...)==0` window sits under a 15m `for`, and both are deliberately conservative to avoid false positives during naturally quiet, block-paced periods.
 Operators who need faster paging should first shorten `for` — the `increase[15m]==0` clause already supplies most of the dwell time — and weigh that against the higher false-positive risk before also considering escalating a sustained full stall to critical.
 
-Storage errors escalate from `TeeProxyStorageErrors` (warning, any error or timeout) to `TeeProxyStorageErrorsSustained` (critical, erroring or timing out for 10m), both label-distinguished by `backend` (`redis`/`gcs`) and `namespace` (`results`/`backups`/`backupIndex`).
+Storage errors escalate from `FccProxyStorageErrors` (warning, any error or timeout) to `FccProxyStorageErrorsSustained` (critical, erroring or timing out for 10m), both label-distinguished by `backend` (`redis`/`gcs`) and `namespace` (`results`/`backups`/`backupIndex`).
 Because `namespace="backups"` is silent wallet-recovery-data loss, operators may route that label to a higher-priority destination — severity tuning on an existing signal, not new coverage.
 
 ## `http`
 
 | Metric                                   | Type      | Labels                            | Description                                        |
 | ---------------------------------------- | --------- | --------------------------------- | -------------------------------------------------- |
-| `teeproxy_http_requests_total`           | counter   | `server`, `route`, `status_class` | HTTP requests by server, route, and status class.  |
-| `teeproxy_http_request_duration_seconds` | histogram | `server`, `route`                 | HTTP request handling latency by server and route. |
+| `fccproxy_http_requests_total`           | counter   | `server`, `route`, `status_class` | HTTP requests by server, route, and status class.  |
+| `fccproxy_http_request_duration_seconds` | histogram | `server`, `route`                 | HTTP request handling latency by server and route. |
 
 Label values: `server` is `internal` or `external`; `route` is the matched mux route template (e.g. `POST /queue/{queueID}`) or `unmatched`; `status_class` is `1xx`/`2xx`/`3xx`/`4xx`/`5xx`.
 A handler panic is recorded once with `status_class` `5xx` and a duration sample up to the point the panic reaches the middleware, then re-raised so net/http still aborts the connection and logs it.
@@ -156,40 +156,40 @@ A handler panic is recorded once with `status_class` `5xx` and a duration sample
 
 | Metric                                        | Type      | Labels                                         | Description                                                       |
 | --------------------------------------------- | --------- | ---------------------------------------------- | ----------------------------------------------------------------- |
-| `teeproxy_storage_operations_total`           | counter   | `backend`, `namespace`, `operation`, `outcome` | Storage operations by backend, namespace, operation, and outcome. |
-| `teeproxy_storage_operation_duration_seconds` | histogram | `backend`, `namespace`, `operation`            | Storage operation latency by backend, namespace, and operation.   |
+| `fccproxy_storage_operations_total`           | counter   | `backend`, `namespace`, `operation`, `outcome` | Storage operations by backend, namespace, operation, and outcome. |
+| `fccproxy_storage_operation_duration_seconds` | histogram | `backend`, `namespace`, `operation`            | Storage operation latency by backend, namespace, and operation.   |
 
 Label values: `backend` is `redis` or `gcs`; `namespace` is `results`/`backups`/`backupIndex`; `operation` is `set`/`set_with_ttl`/`get`/`remove`; `outcome` is `success`/`not_found`/`cancelled`/`timeout`/`error`.
 Of the `operation` values only `get` and `set_with_ttl` are emitted by the wired namespaces; `set` and `remove` do not currently appear.
-`cancelled` is a caller-side cancellation, or a deadline that was already spent before the operation started (e.g. the post-timeout "hopeful" result fetch after a TEE-node stall, or a write aborted by shutdown) — the backend was not necessarily at fault, so it is excluded from the storage error alerts.
+`cancelled` is a caller-side cancellation, or a deadline that was already spent before the operation started (e.g. the post-timeout "hopeful" result fetch after an FCC-node stall, or a write aborted by shutdown) — the backend was not necessarily at fault, so it is excluded from the storage error alerts.
 `timeout` is a deadline the operation consumed itself (the 10s result/backup write budgets): a hung or degraded backend, which under the GCS client's retry-until-deadline policy only ever surfaces this way, so it is included in the storage error alerts alongside `error`.
 
 ## `queue`
 
 | Metric                                            | Type                | Labels            | Description                                                                                                                                                |
 | ------------------------------------------------- | ------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `teeproxy_action_enqueue_total`                   | counter             | `queue`, `result` | Action enqueue attempts by queue and result.                                                                                                               |
-| `teeproxy_action_dequeue_total`                   | counter             | `queue`, `result` | Action dequeue attempts by queue and result; `action_not_found` and `error` consumed a queue ID whose body could not be fetched (an orphaned/lost action), `dequeue_error` failed the pop itself (nothing consumed). |
-| `teeproxy_action_redelivery_total`                | counter             | `queue`, `result` | Undelivered actions put back on their queue; `exhausted` and `requeue_failed` are losses, `requeued` is a retry on the next poll.                           |
-| `teeproxy_action_queue_depth`                     | gauge (scrape-time) | `queue`           | Pending submission IDs per queue.                                                                                                                          |
-| `teeproxy_action_queue_depth_read_failures_total` | counter             | `queue`           | Scrape-time queue-depth (LLEN) read failures; while nonzero the depth gauge reports 0 and the backpressure alert is masked.                                |
+| `fccproxy_action_enqueue_total`                   | counter             | `queue`, `result` | Action enqueue attempts by queue and result.                                                                                                               |
+| `fccproxy_action_dequeue_total`                   | counter             | `queue`, `result` | Action dequeue attempts by queue and result; `action_not_found` and `error` consumed a queue ID whose body could not be fetched (an orphaned/lost action), `dequeue_error` failed the pop itself (nothing consumed). |
+| `fccproxy_action_redelivery_total`                | counter             | `queue`, `result` | Undelivered actions put back on their queue; `exhausted` and `requeue_failed` are losses, `requeued` is a retry on the next poll.                           |
+| `fccproxy_action_queue_depth`                     | gauge (scrape-time) | `queue`           | Pending submission IDs per queue.                                                                                                                          |
+| `fccproxy_action_queue_depth_read_failures_total` | counter             | `queue`           | Scrape-time queue-depth (LLEN) read failures; while nonzero the depth gauge reports 0 and the backpressure alert is masked.                                |
 
 Label values: `result` for dequeue is `success`/`empty`/`dequeue_error`/`cancelled`/`error`/`action_not_found`; `result` for enqueue is `success`/`store_error`/`queue_error`/`invalid_queue`; `result` for redelivery is `requeued`/`exhausted`/`requeue_failed`; `queue` is `main`/`direct`/`backup` (and `other` only on an invalid queue ID).
 `dequeue_error` is the Redis pop itself failing and `cancelled` a caller-side cancellation before it — in both cases no queue ID was consumed, so they are kept out of the orphan alerts; `error` and `action_not_found` mean an ID was consumed but its body could not be fetched, a real orphan.
 A dequeue keeps the action body until the node has the action, so a send that fails is not a loss: the queue ID goes back to the dequeue end and `action_redelivery_total` records the retry, up to `queue.MaxDeliveryAttempts` (5) attempts per action.
 `exhausted` is that cap being reached — an action the node never accepts is dropped rather than blocking its queue forever — and `requeue_failed` a Redis failure while putting the ID back; both lose the action, and for the main queue also count as `finalized_action_lost_total{reason="send_failed"}`.
-During Redis degradation the depth gauge reads 0 and `TeeProxyQueueBackpressure` is expected to be masked; the authoritative Redis-outage signals are `TeeProxyActionDequeueFailing` / `TeeProxyActionEnqueueFailing` and `TeeProxyNotReady` (the storage metrics cover only the results/backups stores, not the Redis queues).
+During Redis degradation the depth gauge reads 0 and `FccProxyQueueBackpressure` is expected to be masked; the authoritative Redis-outage signals are `FccProxyActionDequeueFailing` / `FccProxyActionEnqueueFailing` and `FccProxyNotReady` (the storage metrics cover only the results/backups stores, not the Redis queues).
 
 ## `voting`
 
 | Metric                                           | Type      | Labels   | Description                                                                                       |
 | ------------------------------------------------ | --------- | -------- | ------------------------------------------------------------------------------------------------- |
-| `teeproxy_instructions_received_total`           | counter   | —        | Instructions submitted.                                                                           |
-| `teeproxy_instructions_rejected_total`           | counter   | `reason` | Instructions rejected, by reason.                                                                 |
-| `teeproxy_votings_started_total`                 | counter   | —        | Votings opened (a new proposal box created).                                                      |
-| `teeproxy_voting_threshold_duration_seconds`     | histogram | —        | Seconds from voting start to reaching threshold. Its `_count` is the number of votings finalized. |
-| `teeproxy_finalized_action_enqueue_failed_total` | counter   | —        | Finalized actions that failed to enqueue to the main queue.                                       |
-| `teeproxy_finalized_action_lost_total`           | counter   | `reason` | Finalized actions lost before the main-queue enqueue or on send to the node, by reason.           |
+| `fccproxy_instructions_received_total`           | counter   | —        | Instructions submitted.                                                                           |
+| `fccproxy_instructions_rejected_total`           | counter   | `reason` | Instructions rejected, by reason.                                                                 |
+| `fccproxy_votings_started_total`                 | counter   | —        | Votings opened (a new proposal box created).                                                      |
+| `fccproxy_voting_threshold_duration_seconds`     | histogram | —        | Seconds from voting start to reaching threshold. Its `_count` is the number of votings finalized. |
+| `fccproxy_finalized_action_enqueue_failed_total` | counter   | —        | Finalized actions that failed to enqueue to the main queue.                                       |
+| `fccproxy_finalized_action_lost_total`           | counter   | `reason` | Finalized actions lost before the main-queue enqueue or on send to the node, by reason.           |
 
 Label values: `reason` is one of `wrong_tee_id`/`invalid_op`/`invalid_signature` (set in the instruction service before voting), or one of `invalid_voter`/`voting_ended`/`duplicate_signature`/`event_in_future`/`no_round`/`inconsistent`/`rate_limited`/`not_eligible`/`invalid_cosigner_threshold`/`invalid_cosigner_declaration`/`invalid_fdc_threshold`/`oversized`/`non_instruction_command`/`malformed_payload`/`unknown_wallet`/`zero_policy_threshold`/`other` (from `voting.RejectReason`, which maps an `AddVote` error to a bounded label).
 The reasons are documented in `voting.RejectReason`; notable ones: `inconsistent` is a forged/malformed FDC2 PROVE internal signature; `invalid_cosigner_threshold` is the uint64→uint16 wrap that would finalize with zero cosigners; `invalid_cosigner_declaration` is a client-declared cosigner set/threshold not matching the authoritative wallet/admin config; `malformed_payload` is an unparseable cosigner-resolution payload (bad XRP payment message, restore backup-metadata, or admin pubkey); `unknown_wallet` is a Pay/Reissue instruction referencing a wallet the proxy does not manage; `invalid_fdc_threshold` is an FDC2 PROVE threshold the TEE would reject; `rate_limited`/`not_eligible` are the limiter's flood-shedding and ineligible-proposer rejections; `oversized` is any payload-size bound (incl. the cosigner-count cap); `no_round` is a vote for an unknown reward epoch; `zero_policy_threshold` is a round whose signing policy carries a zero threshold, which the Relay cannot emit.
@@ -201,7 +201,7 @@ Every started voting eventually either finalizes or expires, so expired votings 
 On `finalized_action_lost_total`, `reason` is one of `build_error`/`send_cancelled`/`send_failed`.
 `build_error` is a (practically unreachable) action-serialization failure.
 `send_cancelled` fires only when a finalized action's send to the forwarding channel is aborted during shutdown.
-`send_failed` is an irrecoverable post-dequeue loss: a dequeued action was given up after `queue.MaxDeliveryAttempts` undelivered sends to the node, or could not be put back on the queue at all; it has its own critical alert `TeeProxyFinalizedActionSendFailed`.
+`send_failed` is an irrecoverable post-dequeue loss: a dequeued action was given up after `queue.MaxDeliveryAttempts` undelivered sends to the node, or could not be put back on the queue at all; it has its own critical alert `FccProxyFinalizedActionSendFailed`.
 A single failed send is not counted here — it is an `action_redelivery_total{result="requeued"}` retry.
 Enqueue failures are a separate, sibling failure mode counted by `finalized_action_enqueue_failed_total`, so total finalized-action loss is `finalized_action_lost_total` (all three reasons) plus `finalized_action_enqueue_failed_total`.
 All three `reason` series are pre-initialized to 0 at startup so the first, possibly one-shot drop satisfies the `increase(...) > 0` alerts on `build_error` and `send_failed`.
@@ -216,12 +216,12 @@ Reporting a max across both resident rounds instead would mask a participation c
 
 | Metric                                          | Type                | Labels     | Description                                                                                                                                                                       |
 | ----------------------------------------------- | ------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `teeproxy_active_data_provider_voters`          | gauge (scrape-time) | —          | Distinct data-provider voters (policy-registered, weight-bearing) that cast at least one accepted vote in the current reward epoch.                                               |
-| `teeproxy_active_initiators`                    | gauge (scrape-time) | —          | Distinct initiators (proposers) that opened at least one voting in the current reward epoch.                                                                                      |
-| `teeproxy_active_data_provider_weight_bips`     | gauge (scrape-time) | —          | Combined signing-policy weight, in BIPS of the policy total, of the distinct data-provider voters counted by `active_data_provider_voters`.                                        |
-| `teeproxy_max_voting_weight_bips`               | gauge (scrape-time) | —          | Highest provider weight, in BIPS of the policy total, accumulated by any single voting in the reported reward epoch.                                                               |
-| `teeproxy_voting_threshold_bips`                | gauge (scrape-time) | —          | Signing-policy finalization threshold in BIPS of total voter weight for the reported reward epoch.                                                                                 |
-| `teeproxy_top_provider_unfinalized_proposals`   | gauge (scrape-time) | `provider` | Unfinalized proposals held by each of the top 3 providers (by count) in the current reward epoch; providers with none are omitted, so the metric has no series when all are zero. |
+| `fccproxy_active_data_provider_voters`          | gauge (scrape-time) | —          | Distinct data-provider voters (policy-registered, weight-bearing) that cast at least one accepted vote in the current reward epoch.                                               |
+| `fccproxy_active_initiators`                    | gauge (scrape-time) | —          | Distinct initiators (proposers) that opened at least one voting in the current reward epoch.                                                                                      |
+| `fccproxy_active_data_provider_weight_bips`     | gauge (scrape-time) | —          | Combined signing-policy weight, in BIPS of the policy total, of the distinct data-provider voters counted by `active_data_provider_voters`.                                        |
+| `fccproxy_max_voting_weight_bips`               | gauge (scrape-time) | —          | Highest provider weight, in BIPS of the policy total, accumulated by any single voting in the reported reward epoch.                                                               |
+| `fccproxy_voting_threshold_bips`                | gauge (scrape-time) | —          | Signing-policy finalization threshold in BIPS of total voter weight for the reported reward epoch.                                                                                 |
+| `fccproxy_top_provider_unfinalized_proposals`   | gauge (scrape-time) | `provider` | Unfinalized proposals held by each of the top 3 providers (by count) in the current reward epoch; providers with none are omitted, so the metric has no series when all are zero. |
 
 The `provider` label on `top_provider_unfinalized_proposals` is a voter address.
 It is bounded to at most 3 series per scrape, but the set of addresses that appear changes over time as different providers enter the top 3 (the usual cost of an address-valued label).
@@ -236,30 +236,30 @@ The threshold gauge is the signing policy's own threshold, which covers default-
 
 | Metric                                     | Type    | Labels                       | Description                                                                              |
 | ------------------------------------------ | ------- | ---------------------------- | ---------------------------------------------------------------------------------------- |
-| `teeproxy_results_processed_total`         | counter | `op_command`, `status_class` | Results processed by op command and status class.                                        |
-| `teeproxy_results_lost_total`              | counter | —                            | Results acknowledged to the node but never persisted.                                    |
-| `teeproxy_results_missing_action_id_total` | counter | —                            | Results discarded for carrying no action ID — the node's delivery-failure notifications. |
-| `teeproxy_results_rejected_total`          | counter | `reason`                     | Results rejected before storage, by reason.                                              |
-| `teeproxy_result_channel_dropped_total`    | counter | `channel`                    | Result fan-out messages dropped because the target channel was full, by channel.         |
+| `fccproxy_results_processed_total`         | counter | `op_command`, `status_class` | Results processed by op command and status class.                                        |
+| `fccproxy_results_lost_total`              | counter | —                            | Results acknowledged to the node but never persisted.                                    |
+| `fccproxy_results_missing_action_id_total` | counter | —                            | Results discarded for carrying no action ID — the node's delivery-failure notifications. |
+| `fccproxy_results_rejected_total`          | counter | `reason`                     | Results rejected before storage, by reason.                                              |
+| `fccproxy_result_channel_dropped_total`    | counter | `channel`                    | Result fan-out messages dropped because the target channel was full, by channel.         |
 
 Label values: `op_command` is a bounded operation-command name, else `other`; `status_class` is `failed`/`final`/`transient`; `reason` is `bad_signer`/`wrong_tee_id`/`bootstrap`.
 `results_processed_total` is counted after the identity gates but before storage, so a re-delivery that the storage override-guard later rejects (a duplicate of an already-persisted result) still counts here — it measures processed deliveries, not distinct stored results.
 A `wrong_tee_id` rejection means a result was signed by a key other than the bound TEE identity (a tamper / mis-route signal); `bad_signer` is a malformed signature; `bootstrap` is a non-TEE_INFO result arriving before the identity is set (an expected startup transient).
 `channel` is `key_actions`, `backups`, or `backup_trigger` — the three result fan-out targets a finalized action's side effect is queued to.
-A drop here means a finalized-consensus side effect (key materialization or backup trigger) did not run immediately; the periodic wallet sync in the wallets service later reconciles key and backup state from the tee-node, so a drop delays rather than permanently loses the effect.
+A drop here means a finalized-consensus side effect (key materialization or backup trigger) did not run immediately; the periodic wallet sync in the wallets service later reconciles key and backup state from the fcc-node, so a drop delays rather than permanently loses the effect.
 
 ## `wallet`
 
 | Metric                                      | Type                | Labels   | Description                                                                |
 | ------------------------------------------- | ------------------- | -------- | -------------------------------------------------------------------------- |
-| `teeproxy_wallet_sync_total`                | counter             | `result` | Wallet key/proof sync cycles by result.                                    |
-| `teeproxy_wallet_key_update_failed_total`   | counter             | —        | Signed KEY\_\* results from the node that failed to apply to the key cache. |
-| `teeproxy_wallet_backup_apply_failed_total` | counter             | —        | Signed TEE_BACKUP results from the node that failed to decode before storage. |
-| `teeproxy_wallet_keys_cached`               | gauge (scrape-time) | —        | Key proofs cached in the wallet service's in-memory store.                 |
+| `fccproxy_wallet_sync_total`                | counter             | `result` | Wallet key/proof sync cycles by result.                                    |
+| `fccproxy_wallet_key_update_failed_total`   | counter             | —        | Signed KEY\_\* results from the node that failed to apply to the key cache. |
+| `fccproxy_wallet_backup_apply_failed_total` | counter             | —        | Signed TEE_BACKUP results from the node that failed to decode before storage. |
+| `fccproxy_wallet_keys_cached`               | gauge (scrape-time) | —        | Key proofs cached in the wallet service's in-memory store.                 |
 
 Label values: `result` is `success`/`enqueue_error`/`wait_error`/`parse_error`/`skipped`.
 `enqueue_error` covers action-build/marshal/enqueue failures before the node wait.
-`wait_error` covers a node wait that timed out or failed (shutdown cancellations are not counted); the wait's latency and outcome detail are in `teeproxy_node_response_wait_total{path="wallet_key_info"|"wallet_key_proof"}`.
+`wait_error` covers a node wait that timed out or failed (shutdown cancellations are not counted); the wait's latency and outcome detail are in `fccproxy_node_response_wait_total{path="wallet_key_info"|"wallet_key_proof"}`.
 `parse_error` covers a node wait that returned OK but whose response failed to decode.
 `skipped` fires when a sync trigger arrives while a previous sync is still in progress — a wedged `syncing` flag shows as a sustained run of `skipped`.
 `key_update_failed` and `backup_apply_failed` count signed node results that could not be decoded/applied — protocol invariant breaks (node bug or version skew); the backup counter covers only the pre-storage legs, the storage writes themselves are in `storage_operations_total{namespace=~"backups|backupIndex"}`.
@@ -268,14 +268,14 @@ Label values: `result` is `success`/`enqueue_error`/`wait_error`/`parse_error`/`
 
 | Metric                                   | Type      | Labels   | Description                                                    |
 | ---------------------------------------- | --------- | -------- | -------------------------------------------------------------- |
-| `teeproxy_info_refresh_failures_total`   | counter   | `stage`  | TEE info refresh attempt failures by pipeline stage.           |
-| `teeproxy_info_refresh_exhausted_total`  | counter   | `stage`  | Refreshes given up on, by the stage of their last attempt.     |
-| `teeproxy_info_refresh_duration_seconds` | histogram | `result` | Single TEE info refresh attempt latency by outcome.            |
+| `fccproxy_info_refresh_failures_total`   | counter   | `stage`  | TEE info refresh attempt failures by pipeline stage.           |
+| `fccproxy_info_refresh_exhausted_total`  | counter   | `stage`  | Refreshes given up on, by the stage of their last attempt.     |
+| `fccproxy_info_refresh_duration_seconds` | histogram | `result` | Single TEE info refresh attempt latency by outcome.            |
 
 Label values: `stage` is one of the refresh-pipeline stages (`fetch_block`, `create_action`, `enqueue`, `wait_response`, `action_status`, `unmarshal`, `parse_tee_id`, `payload_hash`, `verify_signature`, `verify_attestation`, plus a defensive `unknown` that no code path reaches today); `result` is `ok`/`error`.
 The duration histogram is observed once per attempt, so its `_count{result}` is the attempt rate and per-attempt success ratio — the denominator the per-stage failure counter lacks — and its buckets capture the TEE round-trip latency.
 
-A refresh makes up to `info_timing.max_attempts` attempts, `info_timing.retry_delay` apart, so `failures_total` counts attempts and is not by itself an incident: the tee-node answers with a failing response (`stage="action_status"`) whenever it cannot produce an attestation within its own 10s token deadline, and the next attempt usually succeeds.
+A refresh makes up to `info_timing.max_attempts` attempts, `info_timing.retry_delay` apart, so `failures_total` counts attempts and is not by itself an incident: the fcc-node answers with a failing response (`stage="action_status"`) whenever it cannot produce an attestation within its own 10s token deadline, and the next attempt usually succeeds.
 `exhausted_total` counts only the refreshes that retries did not recover, which is what alerts key on; `sum(increase(failures_total)) - sum(increase(exhausted_total))` is the retried-away churn.
 Attempts are not retried after `verify_signature` or `verify_attestation` — a verification failure is a security signal that a retry cannot fix — so those stages increment both counters together.
 The bootstrap fetch is retried too, bounded by `info_timing.initial_timeout` rather than by `max_attempts`.
@@ -285,29 +285,29 @@ Its attempts land in `failures_total`, but a spent bootstrap budget does not inc
 
 | Metric                              | Type    | Labels             | Description                                                                 |
 | ----------------------------------- | ------- | ------------------ | --------------------------------------------------------------------------- |
-| `teeproxy_attestation_verify_total` | counter | `result`, `reason` | Attestation verification attempts by result and reason.                     |
-| `teeproxy_attestation_posture`      | gauge   | `setting`          | Attestation verification posture: 1 if the named setting is active, else 0. |
+| `fccproxy_attestation_verify_total` | counter | `result`, `reason` | Attestation verification attempts by result and reason.                     |
+| `fccproxy_attestation_posture`      | gauge   | `setting`          | Attestation verification posture: 1 if the named setting is active, else 0. |
 
 Label values: `result` is `ok` or `error`; `reason` is a bounded reason (`ok`, `magic_pass` for an accepted magic_pass sentinel, `other`, or a mapped verification-failure reason such as `magic_pass_disabled`, `pubkey_mismatch`, `jwt_invalid`, …); `setting` is one of `enabled`, `magic_pass_allowed`, `audience_check`, `code_hash_check`, `platform_check`, `debug_status_check`, `max_token_age_check`, `sec_boot_check`.
-An accepted magic_pass is recorded as `result="ok",reason="magic_pass"` so it is distinguishable from a genuine JWT pass and is NOT covered by `TeeProxyAttestationFailing` (`result="error"`).
+An accepted magic_pass is recorded as `result="ok",reason="magic_pass"` so it is distinguishable from a genuine JWT pass and is NOT covered by `FccProxyAttestationFailing` (`result="error"`).
 The full error-reason set is enumerated in `pkg/attestation` `ErrorReasons`, which metrics pre-initialization uses so every `{result="error"}` series exists at 0 from startup.
 
 ## `policy`
 
 | Metric                                         | Type                | Labels   | Description                                                                              |
 | ---------------------------------------------- | ------------------- | -------- | ---------------------------------------------------------------------------------------- |
-| `teeproxy_policy_active_reward_epoch`          | gauge               | —        | Reward epoch of the active signing policy, which is also the newest one the proxy holds. |
-| `teeproxy_node_applied_policy_epoch`           | gauge (scrape-time) | —        | Reward epoch of the signing policy the tee-node reports it has most recently applied.    |
-| `teeproxy_consensus_max_reward_epoch`          | gauge (scrape-time) | —        | Highest reward epoch of any voting that reached consensus since process start.           |
-| `teeproxy_signing_policy_oldest_reward_epoch`  | gauge (scrape-time) | —        | Oldest reward epoch with a signing policy still resident in the in-memory voting window. |
-| `teeproxy_policy_last_fetch_timestamp_seconds` | gauge               | —        | Unix time of the last error-free signing-policy update-loop iteration.                   |
-| `teeproxy_policy_update_total`                 | counter             | `result` | Signing-policy update-loop iterations by outcome.                                        |
+| `fccproxy_policy_active_reward_epoch`          | gauge               | —        | Reward epoch of the active signing policy, which is also the newest one the proxy holds. |
+| `fccproxy_node_applied_policy_epoch`           | gauge (scrape-time) | —        | Reward epoch of the signing policy the fcc-node reports it has most recently applied.    |
+| `fccproxy_consensus_max_reward_epoch`          | gauge (scrape-time) | —        | Highest reward epoch of any voting that reached consensus since process start.           |
+| `fccproxy_signing_policy_oldest_reward_epoch`  | gauge (scrape-time) | —        | Oldest reward epoch with a signing policy still resident in the in-memory voting window. |
+| `fccproxy_policy_last_fetch_timestamp_seconds` | gauge               | —        | Unix time of the last error-free signing-policy update-loop iteration.                   |
+| `fccproxy_policy_update_total`                 | counter             | `result` | Signing-policy update-loop iterations by outcome.                                        |
 
 Label values: `result` is `empty`/`fetch_error`/`reconciled`/`reconcile_error`/`enqueue_failed`/`await_failed`/`rejected`/`applied`, plus the build-failure reasons `pubkey_mismatch`/`sig_deadline`/`indexer`/`not_consecutive`/`build_failed` (from `policy.UpdateFailureReason`).
 `indexer` means the chain source failed, by repeated read errors while collecting signatures or a voter with no registration, in either `[chain] source` mode; the name is kept for dashboard compatibility.
 In steady state only `empty` increments, once per `signing_policy_fetch_interval` — the next epoch is not yet on chain, which is the healthy heartbeat.
-A wedged or persistently-failing loop is detected as staleness of `policy_last_fetch_timestamp_seconds`, via `time() - teeproxy_policy_last_fetch_timestamp_seconds`, since no error-free iteration refreshes it.
-The overdue alert guards on `teeproxy_policy_last_fetch_timestamp_seconds > 0`: the /metrics server comes up before `Initialize` seeds the gauge, so the guard skips that bootstrap window and the alert reflects a genuine wedge, not a cold start.
+A wedged or persistently-failing loop is detected as staleness of `policy_last_fetch_timestamp_seconds`, via `time() - fccproxy_policy_last_fetch_timestamp_seconds`, since no error-free iteration refreshes it.
+The overdue alert guards on `fccproxy_policy_last_fetch_timestamp_seconds > 0`: the /metrics server comes up before `Initialize` seeds the gauge, so the guard skips that bootstrap window and the alert reflects a genuine wedge, not a cold start.
 `rejected` uniquely surfaces repeated node rejections of a rollover: `WaitOnResponse` returns `err == nil` for a `status != 1` rejection, so the node-wait metric records it as `result="ok"` and only this counter distinguishes it.
 
 The proxy does not persist signing policies.
@@ -323,47 +323,47 @@ It lives in the `policy` group so the reward-epoch gauges enable together.
 
 | Metric                                  | Type                | Labels | Description                                                                            |
 | --------------------------------------- | ------------------- | ------ | -------------------------------------------------------------------------------------- |
-| `teeproxy_ready`                        | gauge               | —      | 1 if the last readiness check passed, else 0.                                          |
-| `teeproxy_info_service_delay_seconds`   | gauge (scrape-time) | —      | Seconds since the last successful TEE info refresh.                                    |
-| `teeproxy_cchain_indexer_delay_seconds` | gauge (scrape-time) | —      | Seconds since the chain source's newest block (indexer DB or node), read at scrape time. |
+| `fccproxy_ready`                        | gauge               | —      | 1 if the last readiness check passed, else 0.                                          |
+| `fccproxy_info_service_delay_seconds`   | gauge (scrape-time) | —      | Seconds since the last successful TEE info refresh.                                    |
+| `fccproxy_cchain_indexer_delay_seconds` | gauge (scrape-time) | —      | Seconds since the chain source's newest block (indexer DB or node), read at scrape time. |
 
 `info_service_delay_seconds` starts at zero at process start: `info.NewService` sets `LastUpdated` to the construction time, so the gauge only rises if refreshes genuinely stop, not as an artifact of not having refreshed yet.
-`teeproxy_ready` reflects only the outcome of the last evaluation triggered by a `GET /ready` call — it is not recomputed on a `/metrics` scrape.
-It requires a periodic external readiness probe (a Kubernetes-style `readinessProbe` hitting `/ready` every 10-30s is the intended deployment) to stay fresh well inside the 2m window `TeeProxyNotReady` uses.
-If nothing ever calls `/ready`, the gauge stays at its zero-value default and `TeeProxyNotReady` pages permanently starting 2 minutes after boot; that is a deployment misconfiguration (no readiness probe wired), not a proxy bug.
+`fccproxy_ready` reflects only the outcome of the last evaluation triggered by a `GET /ready` call — it is not recomputed on a `/metrics` scrape.
+It requires a periodic external readiness probe (a Kubernetes-style `readinessProbe` hitting `/ready` every 10-30s is the intended deployment) to stay fresh well inside the 2m window `FccProxyNotReady` uses.
+If nothing ever calls `/ready`, the gauge stays at its zero-value default and `FccProxyNotReady` pages permanently starting 2 minutes after boot; that is a deployment misconfiguration (no readiness probe wired), not a proxy bug.
 
-`cchain_indexer_delay_seconds` is a direct scrape-time read of the chain source's newest block (the indexer's `FetchState` or the node's latest block, the same read `Ready` checks against the 140s `cChainDelayTolerance`; the name is kept for dashboard compatibility), so unlike `teeproxy_ready` it is fresh on every scrape without a `/ready` probe, and unlike `info_service_delay_seconds` it reflects an external dependency rather than an in-memory timestamp.
-The read is bounded by a 2s timeout and reports 0 if it fails; a source outage is caught by `TeeProxyNotReady` (readiness fails on the same check), so this gauge targets the stale-but-reachable source, which reads fine and returns a large delay.
-It gives lead time before the 140s readiness cutoff and attributes a readiness failure to the c-chain leg, which the composite `teeproxy_ready` cannot.
+`cchain_indexer_delay_seconds` is a direct scrape-time read of the chain source's newest block (the indexer's `FetchState` or the node's latest block, the same read `Ready` checks against the 140s `cChainDelayTolerance`; the name is kept for dashboard compatibility), so unlike `fccproxy_ready` it is fresh on every scrape without a `/ready` probe, and unlike `info_service_delay_seconds` it reflects an external dependency rather than an in-memory timestamp.
+The read is bounded by a 2s timeout and reports 0 if it fails; a source outage is caught by `FccProxyNotReady` (readiness fails on the same check), so this gauge targets the stale-but-reachable source, which reads fine and returns a large delay.
+It gives lead time before the 140s readiness cutoff and attributes a readiness failure to the c-chain leg, which the composite `fccproxy_ready` cannot.
 
 ## `node`
 
 | Metric                                         | Type      | Labels           | Description                                        |
 | ---------------------------------------------- | --------- | ---------------- | -------------------------------------------------- |
-| `teeproxy_node_response_wait_duration_seconds` | histogram | `path`           | Synchronous wait for a TEE-node response, by path.                                  |
-| `teeproxy_node_response_wait_total`            | counter   | `path`, `result` | TEE-node response waits by path and outcome.                                        |
-| `teeproxy_machinepath_poll_total`              | counter   | `result`         | Machine-path poll cycles by result.                                                 |
-| `teeproxy_governance_posture`                  | gauge     | `setting`        | Machine-path governance posture: 1 if the named setting is active, else 0.          |
-| `teeproxy_governance_hash_match`               | gauge (scrape-time) | —      | 1 if the node's last-reported governance hash equals the proxy's startup snapshot.  |
+| `fccproxy_node_response_wait_duration_seconds` | histogram | `path`           | Synchronous wait for an FCC-node response, by path.                                  |
+| `fccproxy_node_response_wait_total`            | counter   | `path`, `result` | FCC-node response waits by path and outcome.                                        |
+| `fccproxy_machinepath_poll_total`              | counter   | `result`         | Machine-path poll cycles by result.                                                 |
+| `fccproxy_governance_posture`                  | gauge     | `setting`        | Machine-path governance posture: 1 if the named setting is active, else 0.          |
+| `fccproxy_governance_hash_match`               | gauge (scrape-time) | —      | 1 if the node's last-reported governance hash equals the proxy's startup snapshot.  |
 
 Label values: `path` is `info`/`machinepath`/`wallet_key_info`/`wallet_key_proof`/`policy_update`; `result` (node-wait) is `ok`/`timeout`/`cancelled`/`error`; `result` (machinepath poll) is `fetch_error`/`build_error`/`no_authorization`/`enqueue_error`/`wait_error`/`no_change`/`rejected`/`confirmed`.
 The `timeout` and `error` node-wait series are pre-initialized to 0 for every path so a first, possibly one-shot wait failure satisfies `increase(...) > 0`.
 `policy_update` is the `UPDATE_POLICY` confirmation wait (2m timeout), fired roughly once per reward epoch during a signing-policy rollover.
-This is the proxy's synchronous round-trip to the TEE node (the wait inside `WaitOnResponse`).
+This is the proxy's synchronous round-trip to the FCC node (the wait inside `WaitOnResponse`).
 A rising `timeout` share, or a p99 approaching the per-path response timeout (2–3 minutes), is the leading signal that the node is slow or unreachable — and the `path` label localizes partial degradation (e.g. `wallet_key_proof` slow while `info` is fine).
-`machinepath_poll_total` covers the poll loop's pre-delivery legs (`fetch_error`/`build_error`/`no_authorization`/`enqueue_error`/`no_change`), its wait leg (`wait_error`, a failed or timed-out confirmation wait; shutdown cancellations are not counted), and its post-wait outcomes (`rejected`/`confirmed`); wait latency is in `teeproxy_node_response_wait_total{path="machinepath"}`.
+`machinepath_poll_total` covers the poll loop's pre-delivery legs (`fetch_error`/`build_error`/`no_authorization`/`enqueue_error`/`no_change`), its wait leg (`wait_error`, a failed or timed-out confirmation wait; shutdown cancellations are not counted), and its post-wait outcomes (`rejected`/`confirmed`); wait latency is in `fccproxy_node_response_wait_total{path="machinepath"}`.
 `build_error` covers every action-build failure — chain-source reads, hash/marshal errors, and, under Safe-backed governance, errors while reading the Safe approval (the `MachinePathListApproved` log and its `execTransaction` from the indexer, the confirmed approval artifact over `rpc`) — except the authorization-absence case, which is split out as `no_authorization`: an activated list with no forwardable direct signatures (only the `[governance]` signers' when it is set) and no Safe approval that passes local pre-verification (failing candidates are skipped and logged at debug).
 `no_authorization` is a governance-configuration condition (e.g. a Safe-backed node paired with a proxy whose `[governance]` block is unset), not an infra fault, and repeats every poll until authorization evidence appears on chain or the config is fixed.
-`rejected` is a node `status != 1` rejection — `WaitOnResponse` returns `err == nil` for it, so the node-wait metric records it as `result="ok"`, and only this counter (and `teeproxy_results_processed_total{op_command="SET_MACHINE_PATH_LIST"}`) distinguishes it.
+`rejected` is a node `status != 1` rejection — `WaitOnResponse` returns `err == nil` for it, so the node-wait metric records it as `result="ok"`, and only this counter (and `fccproxy_results_processed_total{op_command="SET_MACHINE_PATH_LIST"}`) distinguishes it.
 `governance_posture` (settings `configured`/`safe_backed`) is a config-derived gauge in the mold of `attestation_posture`, set once at startup regardless of whether the machine-path service runs: a deploy that drops the `[governance]` block silently regresses to the legacy direct-signature path (signatures forwarded unfiltered), and this gauge is the only immediate signal — the functional symptoms appear only at the next Safe-only list activation (`no_authorization`) or the next list involving several governances (`rejected`).
 `governance_hash_match` is registered only when `[governance]` is set and the machine-path service is enabled; at scrape time it compares the governance hash from the node's latest info refresh against the startup-resolved snapshot.
-A mismatch at startup is a fatal refusal, but the same condition arising later — the node redeployed with rotated governance — would otherwise be silent while signature filtering and Safe pre-verification go stale; `TeeProxyGovernanceHashDrift` alerts on it at the info-refresh cadence, before the next list activation.
+A mismatch at startup is a fatal refusal, but the same condition arising later — the node redeployed with rotated governance — would otherwise be silent while signature filtering and Safe pre-verification go stale; `FccProxyGovernanceHashDrift` alerts on it at the info-refresh cadence, before the next list activation.
 
 ## `runtime`
 
 | Metric                | Type    | Labels                              | Description                                                                      |
 | --------------------- | ------- | ----------------------------------- | -------------------------------------------------------------------------------- |
-| `teeproxy_build_info` | gauge   | `version`, `revision`, `go_version` | Constant 1, labeled with build metadata (version, VCS revision, and Go version). |
+| `fccproxy_build_info` | gauge   | `version`, `revision`, `go_version` | Constant 1, labeled with build metadata (version, VCS revision, and Go version). |
 | `go_*`                | various | —                                   | Standard Go runtime collector (includes `go_goroutines`, GC stats, etc.).        |
 | `process_*`           | various | —                                   | Standard process collector (CPU, memory, file descriptors, etc.).                |
 
@@ -375,9 +375,9 @@ These are recommendations, not applied changes, except the three new gauges and 
 
 ### Recommended removals
 
-`teeproxy_active_initiators` — drop: no alert, monotonic within an epoch, and proposer-address distinctness drives no operator action (submission volume is already in `votings_started_total`).
-`teeproxy_finalized_action_enqueue_failed_total` — redundant: numerically equal to `action_enqueue_total{queue="main",result!="success"}` (the main queue has a single producer); its critical alert can retarget to that.
-`teeproxy_signing_policy_oldest_reward_epoch` — redundant: a fixed offset `policy_active_reward_epoch − (voting.history_size − 1)`; no alert and a misleading 0 when the window is empty.
+`fccproxy_active_initiators` — drop: no alert, monotonic within an epoch, and proposer-address distinctness drives no operator action (submission volume is already in `votings_started_total`).
+`fccproxy_finalized_action_enqueue_failed_total` — redundant: numerically equal to `action_enqueue_total{queue="main",result!="success"}` (the main queue has a single producer); its critical alert can retarget to that.
+`fccproxy_signing_policy_oldest_reward_epoch` — redundant: a fixed offset `policy_active_reward_epoch − (voting.history_size − 1)`; no alert and a misleading 0 when the window is empty.
 
 ### Keep, but wire the missing alert
 
@@ -391,4 +391,4 @@ Still open, highest value first: add `absent()` meta-alerts for the `info`/`voti
 
 ### Doc accuracy fixed here
 
-`finalized_action_lost_total` now documents `send_failed` and its critical `TeeProxyFinalizedActionSendFailed` alert, the machine-path poll enumeration now includes `rejected`, and the storage `operation` note records which values the wired namespaces actually emit.
+`finalized_action_lost_total` now documents `send_failed` and its critical `FccProxyFinalizedActionSendFailed` alert, the machine-path poll enumeration now includes `rejected`, and the storage `operation` note records which values the wired namespaces actually emit.

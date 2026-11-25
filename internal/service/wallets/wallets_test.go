@@ -11,18 +11,18 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/wallets"
 	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/internal/service/result"
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/internal/service/result"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 )
 
 func TestNewKey(t *testing.T) {
@@ -143,7 +143,7 @@ func TestNewKey(t *testing.T) {
 	require.Error(t, err)
 }
 
-// nodeWaitCount reads teeproxy_node_response_wait_total for the given path/result label
+// nodeWaitCount reads fccproxy_node_response_wait_total for the given path/result label
 // pair from m's registry, returning 0 if no matching series exists.
 func nodeWaitCount(t *testing.T, m *metrics.Metrics, path, result string) float64 {
 	t.Helper()
@@ -152,7 +152,7 @@ func nodeWaitCount(t *testing.T, m *metrics.Metrics, path, result string) float6
 	require.NoError(t, err)
 
 	for _, f := range fams {
-		if f.GetName() != "teeproxy_node_response_wait_total" {
+		if f.GetName() != "fccproxy_node_response_wait_total" {
 			continue
 		}
 		for _, mc := range f.GetMetric() {
@@ -288,5 +288,5 @@ func TestCreateNewBackupDecodeFailureCounts(t *testing.T) {
 	err = svc.createNewBackup(context.Background(), &types.ActionResult{Data: []byte("null")})
 	require.Error(t, err)
 
-	require.Equal(t, float64(2), counterValue(t, m, "teeproxy_wallet_backup_apply_failed_total"))
+	require.Equal(t, float64(2), counterValue(t, m, "fccproxy_wallet_backup_apply_failed_total"))
 }

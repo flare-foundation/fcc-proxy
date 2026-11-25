@@ -6,17 +6,17 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/service/instruction/voting/limiter"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/pkg/instruction/meta"
+	"github.com/flare-foundation/fcc-proxy/pkg/instruction/voting"
+	"github.com/flare-foundation/fcc-proxy/pkg/status"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/storage"
 	"github.com/flare-foundation/go-flare-common/pkg/voters"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/service/instruction/voting/limiter"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
-	"github.com/flare-foundation/tee-proxy/pkg/instruction/meta"
-	"github.com/flare-foundation/tee-proxy/pkg/instruction/voting"
-	"github.com/flare-foundation/tee-proxy/pkg/status"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
@@ -353,12 +353,12 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 			case data.OPType == op.Wallet.Hash() && data.OPCommand == op.KeyDataProviderRestore.Hash():
 				// only sent "threshold" action at the end of voting if finalized
 			default:
-				// Two boxes with the same instructionID can each finalize; dedup happens downstream.
-				if boxes.FinalizedHash.Cmp(common.Hash{}) == 0 {
-					boxes.FinalizedHash = hash
-				} else if boxes.FinalizedHash.Cmp(hash) != 0 {
-					logger.Warnf("instruction id %v already finalized with %v, emitting additional threshold action for %v", box.iID, boxes.FinalizedHash, hash)
+				// The node accepts one threshold per instruction ID, so only the first finalized hash is sent.
+				if boxes.FinalizedHash != (common.Hash{}) && boxes.FinalizedHash != hash {
+					logger.Warnf("instruction id %v already finalized with %v, not sending threshold action for %v", box.iID, boxes.FinalizedHash, hash)
+					break
 				}
+				boxes.FinalizedHash = hash
 
 				a, err := box.Action(types.Threshold)
 				if err != nil {

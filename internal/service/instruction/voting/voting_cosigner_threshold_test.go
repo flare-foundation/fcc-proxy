@@ -12,8 +12,8 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
 )
 
 // fixedThresholdMeta returns a caller-chosen cosigner set and threshold, so a test can

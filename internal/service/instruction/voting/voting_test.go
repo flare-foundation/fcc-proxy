@@ -2,6 +2,7 @@ package voting
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"math/big"
 	"testing"
 	"time"
@@ -9,18 +10,18 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
 	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-node/pkg/fdc"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	teeutils "github.com/flare-foundation/tee-node/pkg/utils"
+	"github.com/flare-foundation/fcc-node/pkg/fdc"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	teeutils "github.com/flare-foundation/fcc-node/pkg/utils"
 )
 
 const voteTestChainID uint64 = 14
@@ -420,6 +421,65 @@ func TestAddingVoteAfterExpiry(t *testing.T) {
 // TestAddVoteFinalizedSendCancelledOnShutdown verifies that a finalizing vote does not block
 // forever on the finalized-action channel when the consumer is not draining it: once the
 // service context is cancelled, AddVote abandons the send and returns an error instead of parking.
+func TestSecondFinalizedHashSendsNoThreshold(t *testing.T) {
+	s := NewStorage(t.Context(), &config.Voting{
+		ProposalExpiration:  10 * time.Second,
+		MaxPendingRequests:  10,
+		HistorySize:         3,
+		FinalizedBufferSize: 10,
+	}, &testMeta{}, nil)
+	s.StoreNewRound(testutil.TestSigningPolicy)
+
+	id := crypto.Keccak256Hash([]byte("conflict"))
+	newData := func(msg string) *instruction.Data {
+		return &instruction.Data{
+			InstructionID:             id,
+			TeeID:                     common.HexToAddress("dead"),
+			Timestamp:                 uint64(time.Now().Unix()),
+			RewardEpochID:             1,
+			OPType:                    op.Wallet.Hash(),
+			OPCommand:                 op.KeyGenerate.Hash(),
+			OriginalMessage:           []byte(msg),
+			AdditionalFixedMessage:    hexutil.Bytes{},
+			AdditionalVariableMessage: hexutil.Bytes{},
+		}
+	}
+	vote := func(i *instruction.Data, keys ...*ecdsa.PrivateKey) {
+		t.Helper()
+		h, err := i.HashForSigning(voteTestChainID)
+		require.NoError(t, err)
+		for _, k := range keys {
+			sig, err := instruction.SignInstructionHash(h, k)
+			require.NoError(t, err)
+			_, err = s.AddVote(i, crypto.PubkeyToAddress(k.PublicKey), sig)
+			require.NoError(t, err)
+		}
+	}
+
+	first, second := newData("first"), newData("second")
+	firstHash, err := first.HashFixed()
+	require.NoError(t, err)
+
+	vote(first, testutil.PrivKey1, testutil.PrivKey2)
+	require.Len(t, s.Out, 1)
+	a := <-s.Out
+	require.Equal(t, id, a.Data.ID)
+	require.Equal(t, types.Threshold, a.Data.SubmissionTag)
+
+	// AddVote sends synchronously, so an emitted action would already be buffered.
+	vote(second, testutil.PrivKey1, testutil.PrivKey3)
+	require.Empty(t, s.Out)
+
+	round, ok := s.Get(1)
+	require.True(t, ok)
+	round.Voting.RLock()
+	boxes := round.Voting.M[id]
+	round.Voting.RUnlock()
+	boxes.RLock()
+	defer boxes.RUnlock()
+	require.Equal(t, firstHash, boxes.FinalizedHash)
+}
+
 func TestAddVoteFinalizedSendCancelledOnShutdown(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 

@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/safe"
-	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
 )
 
 // approvalFixture is execTransaction evidence approving the sampleHash list
@@ -59,7 +59,7 @@ func newApprovalFixture(t *testing.T) approvalFixture {
 
 // TestMatchApprovalAndVerify exercises the proxy-side selection contract: an
 // execTransaction whose inner call approves the machine path list is matched,
-// and its evidence verifies with exactly the check the TEE node applies at the
+// and its evidence verifies with exactly the check the FCC node applies at the
 // Safe nonce carried by the event.
 func TestMatchApprovalAndVerify(t *testing.T) {
 	fx := newApprovalFixture(t)

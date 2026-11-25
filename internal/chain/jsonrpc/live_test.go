@@ -14,15 +14,15 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-proxy/pkg/config"
-	"github.com/flare-foundation/tee-proxy/pkg/policy"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/pkg/policy"
 )
 
 const (
 	// liveURLVariable names the endpoint TestLive reads, e.g. https://coston2-api.flare.network/ext/C/rpc.
-	liveURLVariable = "TEEPROXY_LIVE_RPC_URL"
+	liveURLVariable = "FCCPROXY_LIVE_RPC_URL"
 	// liveRelayVariable optionally overrides the registry's Relay, e.g. with a TEE deployment's.
-	liveRelayVariable = "TEEPROXY_LIVE_RELAY"
+	liveRelayVariable = "FCCPROXY_LIVE_RELAY"
 )
 
 // flareContractRegistry is at the same address on every Flare network.

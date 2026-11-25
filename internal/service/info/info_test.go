@@ -13,25 +13,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/flare-foundation/tee-proxy/internal/chain/indexer"
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/service/result"
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/attestation"
+	"github.com/flare-foundation/fcc-proxy/internal/chain/indexer"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/service/result"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/attestation"
 
-	"github.com/flare-foundation/tee-proxy/pkg/config"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -319,8 +319,8 @@ func TestNewServicePreinitsStageLabels(t *testing.T) {
 	}, &attestation.Config{Enabled: false}, m)
 
 	for _, name := range []string{
-		"teeproxy_info_refresh_failures_total",
-		"teeproxy_info_refresh_exhausted_total",
+		"fccproxy_info_refresh_failures_total",
+		"fccproxy_info_refresh_exhausted_total",
 	} {
 		require.Equal(t, len(allStages), infoSeriesCount(t, m, name), "%s must hold one series per stage", name)
 	}
@@ -342,19 +342,19 @@ func infoSeriesCount(t *testing.T, m *metrics.Metrics, name string) int {
 	return 0
 }
 
-// infoFailureCount reads teeproxy_info_refresh_failures_total for the given stage label
+// infoFailureCount reads fccproxy_info_refresh_failures_total for the given stage label
 // from m's registry, returning 0 if no series with that label exists.
 func infoFailureCount(t *testing.T, m *metrics.Metrics, stage string) float64 {
 	t.Helper()
 
-	return infoStageCount(t, m, "teeproxy_info_refresh_failures_total", stage)
+	return infoStageCount(t, m, "fccproxy_info_refresh_failures_total", stage)
 }
 
-// infoExhaustedCount reads teeproxy_info_refresh_exhausted_total for the given stage label.
+// infoExhaustedCount reads fccproxy_info_refresh_exhausted_total for the given stage label.
 func infoExhaustedCount(t *testing.T, m *metrics.Metrics, stage string) float64 {
 	t.Helper()
 
-	return infoStageCount(t, m, "teeproxy_info_refresh_exhausted_total", stage)
+	return infoStageCount(t, m, "fccproxy_info_refresh_exhausted_total", stage)
 }
 
 func infoStageCount(t *testing.T, m *metrics.Metrics, name, stage string) float64 {
@@ -379,7 +379,7 @@ func infoStageCount(t *testing.T, m *metrics.Metrics, name, stage string) float6
 	return 0
 }
 
-// nodeWaitCount reads teeproxy_node_response_wait_total for the given path/result label
+// nodeWaitCount reads fccproxy_node_response_wait_total for the given path/result label
 // pair from m's registry, returning 0 if no matching series exists.
 func nodeWaitCount(t *testing.T, m *metrics.Metrics, path, result string) float64 {
 	t.Helper()
@@ -388,7 +388,7 @@ func nodeWaitCount(t *testing.T, m *metrics.Metrics, path, result string) float6
 	require.NoError(t, err)
 
 	for _, f := range fams {
-		if f.GetName() != "teeproxy_node_response_wait_total" {
+		if f.GetName() != "fccproxy_node_response_wait_total" {
 			continue
 		}
 		for _, mc := range f.GetMetric() {
@@ -410,7 +410,7 @@ func nodeWaitCount(t *testing.T, m *metrics.Metrics, path, result string) float6
 	return 0
 }
 
-// attestationVerifyCount reads teeproxy_attestation_verify_total for the given
+// attestationVerifyCount reads fccproxy_attestation_verify_total for the given
 // result/reason label pair from m's registry, returning 0 if no matching series exists.
 func attestationVerifyCount(t *testing.T, m *metrics.Metrics, result, reason string) float64 {
 	t.Helper()
@@ -419,7 +419,7 @@ func attestationVerifyCount(t *testing.T, m *metrics.Metrics, result, reason str
 	require.NoError(t, err)
 
 	for _, f := range fams {
-		if f.GetName() != "teeproxy_attestation_verify_total" {
+		if f.GetName() != "fccproxy_attestation_verify_total" {
 			continue
 		}
 		for _, mc := range f.GetMetric() {

@@ -26,9 +26,9 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 
-	"github.com/flare-foundation/tee-proxy/pkg/config"
-	"github.com/flare-foundation/tee-proxy/pkg/machinepath"
-	"github.com/flare-foundation/tee-proxy/pkg/policy"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/pkg/machinepath"
+	"github.com/flare-foundation/fcc-proxy/pkg/policy"
 )
 
 // retryBudget bounds the retries of one read, or one attempt when the timeout is longer.

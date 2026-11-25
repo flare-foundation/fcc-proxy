@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,7 +31,7 @@ func (s *slowResultService) Serve(context.Context, common.Hash, types.Submission
 }
 
 // TestInternalCloseWaitsForResultWrites guards the shutdown ordering: a result acked
-// to the TEE node must be durably stored before Close returns (and the storage
+// to the FCC node must be durably stored before Close returns (and the storage
 // client is closed after it).
 func TestInternalCloseWaitsForResultWrites(t *testing.T) {
 	svc := &slowResultService{stored: make(chan struct{}), delay: 200 * time.Millisecond}

@@ -4,8 +4,8 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-proxy/internal/service/instruction/voting/limiter"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
-	"github.com/flare-foundation/tee-proxy/internal/service/instruction/voting/limiter"
 )
 
 // Round holds all voting activity that belongs to one signing policy (reward epoch).

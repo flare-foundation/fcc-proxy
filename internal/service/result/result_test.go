@@ -11,13 +11,13 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 	"github.com/flare-foundation/go-flare-common/pkg/random"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
 	"github.com/stretchr/testify/require"
 )
 
@@ -104,10 +104,10 @@ func TestProcessAndStoreDropsZeroIDResult(t *testing.T) {
 // backend failure must do both.
 func TestProcessAndStoreResultMetrics(t *testing.T) {
 	const (
-		lost      = "teeproxy_results_lost_total"
-		discarded = "teeproxy_results_missing_action_id_total"
-		processed = "teeproxy_results_processed_total"
-		rejected  = "teeproxy_results_rejected_total"
+		lost      = "fccproxy_results_lost_total"
+		discarded = "fccproxy_results_missing_action_id_total"
+		processed = "fccproxy_results_processed_total"
+		rejected  = "fccproxy_results_rejected_total"
 	)
 	mr := miniredis.RunT(t)
 	n := storage.NewNotifier(storage.NewClient(mr.Addr()))
@@ -189,11 +189,11 @@ func TestProcessAndStoreResultMetrics(t *testing.T) {
 
 // TestProcessAndStoreChannelDrops verifies that a full result fan-out channel is a
 // silent, absorbed drop — ProcessAndStore still succeeds and persists the result —
-// while the drop increments teeproxy_result_channel_dropped_total under the matching
+// while the drop increments fccproxy_result_channel_dropped_total under the matching
 // channel label.
 func TestProcessAndStoreChannelDrops(t *testing.T) {
 	const chainID = uint64(14)
-	const dropped = "teeproxy_result_channel_dropped_total"
+	const dropped = "fccproxy_result_channel_dropped_total"
 
 	mr := miniredis.RunT(t)
 	n := storage.NewNotifier(storage.NewClient(mr.Addr()))

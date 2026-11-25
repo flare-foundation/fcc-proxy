@@ -5,14 +5,14 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/safe"
-	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
 // selectApproval returns the first candidate that approves exactly this list —
 // an approveMachinePathList CALL to managerAddress binding (extensionID, nonce,
-// messageHash) — and verifies with exactly the check the TEE node applies
+// messageHash) — and verifies with exactly the check the FCC node applies
 // (safe.Approval.Verify against gov.Signers/gov.Threshold at the candidate's
 // Safe nonce). It returns nil (no error) when none does.
 func selectApproval(

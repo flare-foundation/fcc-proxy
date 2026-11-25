@@ -16,7 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-proxy/pkg/attestation"
+	"github.com/flare-foundation/fcc-proxy/pkg/attestation"
 )
 
 // gatheredNames returns the metric family names currently registered.
@@ -55,12 +55,12 @@ func TestRuntimeGroupGatesBaseline(t *testing.T) {
 	require.True(t, off.Enabled())
 	require.Empty(t, gatheredNames(t, off))
 
-	// Runtime group on: go_*, process_*, and teeproxy_build_info are present.
+	// Runtime group on: go_*, process_*, and fccproxy_build_info are present.
 	on := New(Config{Enable: true, Runtime: true})
 	require.True(t, on.Enabled())
 
 	names := gatheredNames(t, on)
-	require.Contains(t, names, "teeproxy_build_info")
+	require.Contains(t, names, "fccproxy_build_info")
 
 	var hasGo, hasProcess bool
 	for _, n := range names {
@@ -210,7 +210,7 @@ func TestVotingDisabledIsNoOp(t *testing.T) {
 		m.FinalizedActionLost("build_error")
 	})
 
-	n, err := testutil.GatherAndCount(m.Registry(), "teeproxy_finalized_action_lost_total")
+	n, err := testutil.GatherAndCount(m.Registry(), "fccproxy_finalized_action_lost_total")
 	require.NoError(t, err)
 	require.Zero(t, n, "disabled voting group registers no finalized_action_lost series")
 }
@@ -226,7 +226,7 @@ func TestFinalizedActionLostCounter(t *testing.T) {
 	require.Equal(t, float64(1), testutil.ToFloat64(m.finalizedActionLost.WithLabelValues("build_error")))
 	require.Equal(t, float64(2), testutil.ToFloat64(m.finalizedActionLost.WithLabelValues("send_cancelled")))
 	require.Equal(t, float64(1), testutil.ToFloat64(m.finalizedActionLost.WithLabelValues("send_failed")))
-	require.Contains(t, gatheredNames(t, m), "teeproxy_finalized_action_lost_total")
+	require.Contains(t, gatheredNames(t, m), "fccproxy_finalized_action_lost_total")
 }
 
 // TestFinalizedActionLostPreInitialized proves all reasons are born at 0 so the first,
@@ -258,11 +258,11 @@ func TestQueueMetrics(t *testing.T) {
 
 	m.RegisterQueueDepth("main", func() float64 { return 5 })
 	const expected = `
-# HELP teeproxy_action_queue_depth Pending submission IDs per queue.
-# TYPE teeproxy_action_queue_depth gauge
-teeproxy_action_queue_depth{queue="main"} 5
+# HELP fccproxy_action_queue_depth Pending submission IDs per queue.
+# TYPE fccproxy_action_queue_depth gauge
+fccproxy_action_queue_depth{queue="main"} 5
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "teeproxy_action_queue_depth"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "fccproxy_action_queue_depth"))
 
 	m.ActionEnqueued("main", "success")
 	m.ActionEnqueued("main", "success")
@@ -272,11 +272,11 @@ teeproxy_action_queue_depth{queue="main"} 5
 
 	m.QueueDepthReadFailed("main")
 	const expectedReadFailures = `
-# HELP teeproxy_action_queue_depth_read_failures_total Scrape-time queue-depth (LLEN) read failures by queue; while nonzero the depth gauge reports 0 and the backpressure alert is masked.
-# TYPE teeproxy_action_queue_depth_read_failures_total counter
-teeproxy_action_queue_depth_read_failures_total{queue="main"} 1
+# HELP fccproxy_action_queue_depth_read_failures_total Scrape-time queue-depth (LLEN) read failures by queue; while nonzero the depth gauge reports 0 and the backpressure alert is masked.
+# TYPE fccproxy_action_queue_depth_read_failures_total counter
+fccproxy_action_queue_depth_read_failures_total{queue="main"} 1
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expectedReadFailures), "teeproxy_action_queue_depth_read_failures_total"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expectedReadFailures), "fccproxy_action_queue_depth_read_failures_total"))
 }
 
 func TestQueueDisabledIsNoOp(t *testing.T) {
@@ -286,7 +286,7 @@ func TestQueueDisabledIsNoOp(t *testing.T) {
 	called := false
 	m.RegisterQueueDepth("main", func() float64 { called = true; return 1 })
 
-	n, err := testutil.GatherAndCount(m.Registry(), "teeproxy_action_queue_depth")
+	n, err := testutil.GatherAndCount(m.Registry(), "fccproxy_action_queue_depth")
 	require.NoError(t, err)
 	require.Zero(t, n)
 	require.False(t, called)
@@ -296,7 +296,7 @@ func TestQueueDisabledIsNoOp(t *testing.T) {
 		m.QueueDepthReadFailed("main")
 	})
 
-	for _, name := range []string{"teeproxy_action_enqueue_total", "teeproxy_action_queue_depth_read_failures_total"} {
+	for _, name := range []string{"fccproxy_action_enqueue_total", "fccproxy_action_queue_depth_read_failures_total"} {
 		count, err := testutil.GatherAndCount(m.Registry(), name)
 		require.NoError(t, err)
 		require.Zerof(t, count, "%s must register no series when the queue group is disabled", name)
@@ -390,7 +390,7 @@ func TestAttestationPostureDisabledIsNoOp(t *testing.T) {
 	require.NotPanics(t, func() { off.SetAttestationPosture(map[string]bool{"enabled": true}) })
 	require.Nil(t, off.attestationPosture, "disabled attestation group leaves the posture gauge nil")
 
-	n, err := testutil.GatherAndCount(off.Registry(), "teeproxy_attestation_posture")
+	n, err := testutil.GatherAndCount(off.Registry(), "fccproxy_attestation_posture")
 	require.NoError(t, err)
 	require.Zero(t, n, "no attestation_posture series when the group is disabled")
 }
@@ -413,8 +413,8 @@ func TestSecurityCountersPreInitialized(t *testing.T) {
 	require.Equal(t, 2+len(attestation.ErrorReasons), testutil.CollectAndCount(m.attestationVerify))
 
 	names := gatheredNames(t, m)
-	require.Contains(t, names, "teeproxy_results_rejected_total")
-	require.Contains(t, names, "teeproxy_attestation_verify_total")
+	require.Contains(t, names, "fccproxy_results_rejected_total")
+	require.Contains(t, names, "fccproxy_attestation_verify_total")
 }
 
 func TestInfoAttestationDisabledIsNoOp(t *testing.T) {
@@ -515,7 +515,7 @@ func TestGovernancePostureDisabledIsNoOp(t *testing.T) {
 	require.NotPanics(t, func() { off.SetGovernancePosture(map[string]bool{"configured": true}) })
 	require.Nil(t, off.governancePosture, "disabled node group leaves the posture gauge nil")
 
-	n, err := testutil.GatherAndCount(off.Registry(), "teeproxy_governance_posture")
+	n, err := testutil.GatherAndCount(off.Registry(), "fccproxy_governance_posture")
 	require.NoError(t, err)
 	require.Zero(t, n)
 }
@@ -525,11 +525,11 @@ func TestGovernanceHashMatchGauge(t *testing.T) {
 	m.RegisterGovernanceHashMatch(func() float64 { return 1 })
 
 	const expected = `
-# HELP teeproxy_governance_hash_match 1 if the node's last-reported governance hash equals the proxy's startup snapshot, else 0.
-# TYPE teeproxy_governance_hash_match gauge
-teeproxy_governance_hash_match 1
+# HELP fccproxy_governance_hash_match 1 if the node's last-reported governance hash equals the proxy's startup snapshot, else 0.
+# TYPE fccproxy_governance_hash_match gauge
+fccproxy_governance_hash_match 1
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "teeproxy_governance_hash_match"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "fccproxy_governance_hash_match"))
 }
 
 func TestGovernanceHashMatchGaugeDisabled(t *testing.T) {
@@ -538,7 +538,7 @@ func TestGovernanceHashMatchGaugeDisabled(t *testing.T) {
 	matchCalled := false
 	m.RegisterGovernanceHashMatch(func() float64 { matchCalled = true; return 1 })
 
-	n, err := testutil.GatherAndCount(m.Registry(), "teeproxy_governance_hash_match")
+	n, err := testutil.GatherAndCount(m.Registry(), "fccproxy_governance_hash_match")
 	require.NoError(t, err)
 	require.Zero(t, n, "must register no series when the node group is disabled")
 	require.False(t, matchCalled)
@@ -572,7 +572,7 @@ func TestPolicyDisabledIsNoOp(t *testing.T) {
 		m.PolicyUpdate("applied")
 	})
 
-	for _, name := range []string{"teeproxy_policy_last_fetch_timestamp_seconds", "teeproxy_policy_update_total"} {
+	for _, name := range []string{"fccproxy_policy_last_fetch_timestamp_seconds", "fccproxy_policy_update_total"} {
 		n, err := testutil.GatherAndCount(m.Registry(), name)
 		require.NoError(t, err)
 		require.Zerof(t, n, "%s must register no series when the policy group is disabled", name)
@@ -585,15 +585,15 @@ func TestPolicyRewardEpochGauges(t *testing.T) {
 	m.RegisterMaxConsensusEpoch(func() float64 { return 41 })
 
 	names := gatheredNames(t, m)
-	require.Contains(t, names, "teeproxy_node_applied_policy_epoch")
-	require.Contains(t, names, "teeproxy_consensus_max_reward_epoch")
+	require.Contains(t, names, "fccproxy_node_applied_policy_epoch")
+	require.Contains(t, names, "fccproxy_consensus_max_reward_epoch")
 
 	const expected = `
-# HELP teeproxy_node_applied_policy_epoch Reward epoch of the signing policy the tee-node reports it has most recently applied.
-# TYPE teeproxy_node_applied_policy_epoch gauge
-teeproxy_node_applied_policy_epoch 42
+# HELP fccproxy_node_applied_policy_epoch Reward epoch of the signing policy the fcc-node reports it has most recently applied.
+# TYPE fccproxy_node_applied_policy_epoch gauge
+fccproxy_node_applied_policy_epoch 42
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "teeproxy_node_applied_policy_epoch"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "fccproxy_node_applied_policy_epoch"))
 }
 
 func TestPolicyRewardEpochGaugesDisabled(t *testing.T) {
@@ -603,7 +603,7 @@ func TestPolicyRewardEpochGaugesDisabled(t *testing.T) {
 	m.RegisterNodeAppliedPolicy(func() float64 { appliedCalled = true; return 1 })
 	m.RegisterMaxConsensusEpoch(func() float64 { consensusCalled = true; return 1 })
 
-	for _, name := range []string{"teeproxy_node_applied_policy_epoch", "teeproxy_consensus_max_reward_epoch"} {
+	for _, name := range []string{"fccproxy_node_applied_policy_epoch", "fccproxy_consensus_max_reward_epoch"} {
 		n, err := testutil.GatherAndCount(m.Registry(), name)
 		require.NoError(t, err)
 		require.Zerof(t, n, "%s must register no series when the policy group is disabled", name)
@@ -623,19 +623,19 @@ func TestLivenessMetrics(t *testing.T) {
 
 	m.RegisterInfoDelay(func() float64 { return 12 })
 	const expected = `
-# HELP teeproxy_info_service_delay_seconds Seconds since the last successful TEE info refresh.
-# TYPE teeproxy_info_service_delay_seconds gauge
-teeproxy_info_service_delay_seconds 12
+# HELP fccproxy_info_service_delay_seconds Seconds since the last successful TEE info refresh.
+# TYPE fccproxy_info_service_delay_seconds gauge
+fccproxy_info_service_delay_seconds 12
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "teeproxy_info_service_delay_seconds"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "fccproxy_info_service_delay_seconds"))
 
 	m.RegisterCChainDelay(func() float64 { return 30 })
 	const expectedCChain = `
-# HELP teeproxy_cchain_indexer_delay_seconds Seconds since the last c-chain indexer block, read from the indexer DB at scrape time.
-# TYPE teeproxy_cchain_indexer_delay_seconds gauge
-teeproxy_cchain_indexer_delay_seconds 30
+# HELP fccproxy_cchain_indexer_delay_seconds Seconds since the last c-chain indexer block, read from the indexer DB at scrape time.
+# TYPE fccproxy_cchain_indexer_delay_seconds gauge
+fccproxy_cchain_indexer_delay_seconds 30
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expectedCChain), "teeproxy_cchain_indexer_delay_seconds"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expectedCChain), "fccproxy_cchain_indexer_delay_seconds"))
 }
 
 func TestLivenessDisabledIsNoOp(t *testing.T) {
@@ -645,7 +645,7 @@ func TestLivenessDisabledIsNoOp(t *testing.T) {
 	called := false
 	m.RegisterInfoDelay(func() float64 { called = true; return 1 })
 
-	n, err := testutil.GatherAndCount(m.Registry(), "teeproxy_info_service_delay_seconds")
+	n, err := testutil.GatherAndCount(m.Registry(), "fccproxy_info_service_delay_seconds")
 	require.NoError(t, err)
 	require.Zero(t, n)
 	require.False(t, called)
@@ -653,7 +653,7 @@ func TestLivenessDisabledIsNoOp(t *testing.T) {
 
 	cchainCalled := false
 	m.RegisterCChainDelay(func() float64 { cchainCalled = true; return 1 })
-	n, err = testutil.GatherAndCount(m.Registry(), "teeproxy_cchain_indexer_delay_seconds")
+	n, err = testutil.GatherAndCount(m.Registry(), "fccproxy_cchain_indexer_delay_seconds")
 	require.NoError(t, err)
 	require.Zero(t, n)
 	require.False(t, cchainCalled)
@@ -665,15 +665,15 @@ func TestActiveParticipantGauges(t *testing.T) {
 	on.RegisterActiveInitiators(func() float64 { return 4 })
 
 	names := gatheredNames(t, on)
-	require.Contains(t, names, "teeproxy_active_data_provider_voters")
-	require.Contains(t, names, "teeproxy_active_initiators")
+	require.Contains(t, names, "fccproxy_active_data_provider_voters")
+	require.Contains(t, names, "fccproxy_active_initiators")
 
 	const expected = `
-# HELP teeproxy_active_initiators Distinct initiators (proposers) that opened at least one voting in the current reward epoch.
-# TYPE teeproxy_active_initiators gauge
-teeproxy_active_initiators 4
+# HELP fccproxy_active_initiators Distinct initiators (proposers) that opened at least one voting in the current reward epoch.
+# TYPE fccproxy_active_initiators gauge
+fccproxy_active_initiators 4
 `
-	require.NoError(t, testutil.GatherAndCompare(on.Registry(), strings.NewReader(expected), "teeproxy_active_initiators"))
+	require.NoError(t, testutil.GatherAndCompare(on.Registry(), strings.NewReader(expected), "fccproxy_active_initiators"))
 
 	off := New(Config{Enable: true, ActiveVoters: false})
 	called := false
@@ -693,33 +693,33 @@ func TestActiveVoterWeightGauges(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "teeproxy_active_data_provider_weight_bips",
+			name:     "fccproxy_active_data_provider_weight_bips",
 			register: (*Metrics).RegisterActiveDataProviderWeight,
 			value:    5001,
 			expected: `
-# HELP teeproxy_active_data_provider_weight_bips Combined signing-policy weight, in BIPS of the policy total, of the distinct data-provider voters counted by active_data_provider_voters.
-# TYPE teeproxy_active_data_provider_weight_bips gauge
-teeproxy_active_data_provider_weight_bips 5001
+# HELP fccproxy_active_data_provider_weight_bips Combined signing-policy weight, in BIPS of the policy total, of the distinct data-provider voters counted by active_data_provider_voters.
+# TYPE fccproxy_active_data_provider_weight_bips gauge
+fccproxy_active_data_provider_weight_bips 5001
 `,
 		},
 		{
-			name:     "teeproxy_max_voting_weight_bips",
+			name:     "fccproxy_max_voting_weight_bips",
 			register: (*Metrics).RegisterMaxVotingWeight,
 			value:    3333,
 			expected: `
-# HELP teeproxy_max_voting_weight_bips Highest provider weight, in BIPS of the policy total, accumulated by any single voting in the reported reward epoch.
-# TYPE teeproxy_max_voting_weight_bips gauge
-teeproxy_max_voting_weight_bips 3333
+# HELP fccproxy_max_voting_weight_bips Highest provider weight, in BIPS of the policy total, accumulated by any single voting in the reported reward epoch.
+# TYPE fccproxy_max_voting_weight_bips gauge
+fccproxy_max_voting_weight_bips 3333
 `,
 		},
 		{
-			name:     "teeproxy_voting_threshold_bips",
+			name:     "fccproxy_voting_threshold_bips",
 			register: (*Metrics).RegisterVotingThreshold,
 			value:    5000,
 			expected: `
-# HELP teeproxy_voting_threshold_bips Signing-policy finalization threshold in BIPS of total voter weight for the reported reward epoch; default votings finalize on weight strictly greater than this.
-# TYPE teeproxy_voting_threshold_bips gauge
-teeproxy_voting_threshold_bips 5000
+# HELP fccproxy_voting_threshold_bips Signing-policy finalization threshold in BIPS of total voter weight for the reported reward epoch; default votings finalize on weight strictly greater than this.
+# TYPE fccproxy_voting_threshold_bips gauge
+fccproxy_voting_threshold_bips 5000
 `,
 		},
 	}
@@ -741,7 +741,7 @@ teeproxy_voting_threshold_bips 5000
 }
 
 func TestTopProviderUnfinalizedProposals(t *testing.T) {
-	const name = "teeproxy_top_provider_unfinalized_proposals"
+	const name = "fccproxy_top_provider_unfinalized_proposals"
 
 	on := New(Config{Enable: true, ActiveVoters: true})
 	on.RegisterTopUnfinalizedProposals(func() []ProviderPending {
@@ -752,10 +752,10 @@ func TestTopProviderUnfinalizedProposals(t *testing.T) {
 	})
 
 	const expected = `
-# HELP teeproxy_top_provider_unfinalized_proposals Unfinalized proposals held by each of the top providers (top 3) in the current reward epoch; providers with none are omitted.
-# TYPE teeproxy_top_provider_unfinalized_proposals gauge
-teeproxy_top_provider_unfinalized_proposals{provider="0x000000000000000000000000000000000000000a"} 1
-teeproxy_top_provider_unfinalized_proposals{provider="0x000000000000000000000000000000000000000b"} 3
+# HELP fccproxy_top_provider_unfinalized_proposals Unfinalized proposals held by each of the top providers (top 3) in the current reward epoch; providers with none are omitted.
+# TYPE fccproxy_top_provider_unfinalized_proposals gauge
+fccproxy_top_provider_unfinalized_proposals{provider="0x000000000000000000000000000000000000000a"} 1
+fccproxy_top_provider_unfinalized_proposals{provider="0x000000000000000000000000000000000000000b"} 3
 `
 	require.NoError(t, testutil.GatherAndCompare(on.Registry(), strings.NewReader(expected), name))
 
@@ -779,7 +779,7 @@ teeproxy_top_provider_unfinalized_proposals{provider="0x000000000000000000000000
 // reason a custom collector is used instead of a GaugeVec).
 func TestTopProviderCollectorNoStaleSeries(t *testing.T) {
 	const (
-		name  = "teeproxy_top_provider_unfinalized_proposals"
+		name  = "fccproxy_top_provider_unfinalized_proposals"
 		addrA = "0x000000000000000000000000000000000000000a"
 		addrB = "0x000000000000000000000000000000000000000b"
 	)
@@ -790,17 +790,17 @@ func TestTopProviderCollectorNoStaleSeries(t *testing.T) {
 
 	current = []ProviderPending{{Provider: addrA, Pending: 2}}
 	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(`
-# HELP teeproxy_top_provider_unfinalized_proposals Unfinalized proposals held by each of the top providers (top 3) in the current reward epoch; providers with none are omitted.
-# TYPE teeproxy_top_provider_unfinalized_proposals gauge
-teeproxy_top_provider_unfinalized_proposals{provider="0x000000000000000000000000000000000000000a"} 2
+# HELP fccproxy_top_provider_unfinalized_proposals Unfinalized proposals held by each of the top providers (top 3) in the current reward epoch; providers with none are omitted.
+# TYPE fccproxy_top_provider_unfinalized_proposals gauge
+fccproxy_top_provider_unfinalized_proposals{provider="0x000000000000000000000000000000000000000a"} 2
 `), name))
 
 	// A now leaves the top and B enters: the scrape must show only B, never a stale A.
 	current = []ProviderPending{{Provider: addrB, Pending: 5}}
 	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(`
-# HELP teeproxy_top_provider_unfinalized_proposals Unfinalized proposals held by each of the top providers (top 3) in the current reward epoch; providers with none are omitted.
-# TYPE teeproxy_top_provider_unfinalized_proposals gauge
-teeproxy_top_provider_unfinalized_proposals{provider="0x000000000000000000000000000000000000000b"} 5
+# HELP fccproxy_top_provider_unfinalized_proposals Unfinalized proposals held by each of the top providers (top 3) in the current reward epoch; providers with none are omitted.
+# TYPE fccproxy_top_provider_unfinalized_proposals gauge
+fccproxy_top_provider_unfinalized_proposals{provider="0x000000000000000000000000000000000000000b"} 5
 `), name))
 
 	n, err := testutil.GatherAndCount(m.Registry(), name)
@@ -815,12 +815,12 @@ func TestOldestStoredPolicyGauge(t *testing.T) {
 	on.RegisterOldestStoredPolicy(func() float64 { return 100 })
 
 	const expected = `
-# HELP teeproxy_signing_policy_oldest_reward_epoch Oldest reward epoch with a signing policy still resident in the in-memory voting window.
-# TYPE teeproxy_signing_policy_oldest_reward_epoch gauge
-teeproxy_signing_policy_oldest_reward_epoch 100
+# HELP fccproxy_signing_policy_oldest_reward_epoch Oldest reward epoch with a signing policy still resident in the in-memory voting window.
+# TYPE fccproxy_signing_policy_oldest_reward_epoch gauge
+fccproxy_signing_policy_oldest_reward_epoch 100
 `
 	require.NoError(t, testutil.GatherAndCompare(on.Registry(), strings.NewReader(expected),
-		"teeproxy_signing_policy_oldest_reward_epoch"))
+		"fccproxy_signing_policy_oldest_reward_epoch"))
 
 	off := New(Config{Enable: true, Policy: false})
 	require.False(t, off.PolicyEnabled())
@@ -828,7 +828,7 @@ teeproxy_signing_policy_oldest_reward_epoch 100
 	called := false
 	off.RegisterOldestStoredPolicy(func() float64 { called = true; return 1 })
 
-	n, err := testutil.GatherAndCount(off.Registry(), "teeproxy_signing_policy_oldest_reward_epoch")
+	n, err := testutil.GatherAndCount(off.Registry(), "fccproxy_signing_policy_oldest_reward_epoch")
 	require.NoError(t, err)
 	require.Zero(t, n)
 	require.False(t, called, "epoch function must not be invoked when the policy group is disabled")
@@ -859,7 +859,7 @@ func TestWalletKeyUpdateFailedCounter(t *testing.T) {
 	m.WalletKeyUpdateFailed()
 
 	require.Equal(t, float64(2), testutil.ToFloat64(m.walletKeyUpdateFailed))
-	require.Contains(t, gatheredNames(t, m), "teeproxy_wallet_key_update_failed_total")
+	require.Contains(t, gatheredNames(t, m), "fccproxy_wallet_key_update_failed_total")
 }
 
 func TestWalletBackupApplyFailedCounter(t *testing.T) {
@@ -868,7 +868,7 @@ func TestWalletBackupApplyFailedCounter(t *testing.T) {
 	m.WalletBackupApplyFailed()
 
 	require.Equal(t, float64(1), testutil.ToFloat64(m.walletBackupApplyFailed))
-	require.Contains(t, gatheredNames(t, m), "teeproxy_wallet_backup_apply_failed_total")
+	require.Contains(t, gatheredNames(t, m), "fccproxy_wallet_backup_apply_failed_total")
 }
 
 func TestWalletKeysCachedGauge(t *testing.T) {
@@ -878,11 +878,11 @@ func TestWalletKeysCachedGauge(t *testing.T) {
 	on.RegisterWalletKeysCached(func() float64 { return 3 })
 
 	const expected = `
-# HELP teeproxy_wallet_keys_cached Key proofs cached in the wallet service's in-memory store.
-# TYPE teeproxy_wallet_keys_cached gauge
-teeproxy_wallet_keys_cached 3
+# HELP fccproxy_wallet_keys_cached Key proofs cached in the wallet service's in-memory store.
+# TYPE fccproxy_wallet_keys_cached gauge
+fccproxy_wallet_keys_cached 3
 `
-	require.NoError(t, testutil.GatherAndCompare(on.Registry(), strings.NewReader(expected), "teeproxy_wallet_keys_cached"))
+	require.NoError(t, testutil.GatherAndCompare(on.Registry(), strings.NewReader(expected), "fccproxy_wallet_keys_cached"))
 
 	off := New(Config{Enable: true, Wallet: false})
 	require.False(t, off.WalletEnabled())
@@ -890,7 +890,7 @@ teeproxy_wallet_keys_cached 3
 	called := false
 	off.RegisterWalletKeysCached(func() float64 { called = true; return 1 })
 
-	n, err := testutil.GatherAndCount(off.Registry(), "teeproxy_wallet_keys_cached")
+	n, err := testutil.GatherAndCount(off.Registry(), "fccproxy_wallet_keys_cached")
 	require.NoError(t, err)
 	require.Zero(t, n)
 	require.False(t, called, "count function must not be invoked when the wallet group is disabled")

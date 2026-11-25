@@ -13,7 +13,7 @@ db_sync_max_sleep_time = "10m"
 # node's JSON-RPC endpoint and ignores [db]. See README "Chain Source".
 [chain]
 source = "indexer"
-# url = "https://coston2-api.flare.network/ext/C/rpc"  # rpc only; C-chain node, not the TEE node; env NODE_URL (name set by url_variable) wins
+# url = "https://coston2-api.flare.network/ext/C/rpc"  # rpc only; C-chain node, not the FCC node; env NODE_URL (name set by url_variable) wins
 # api_key = ""                                         # rpc only, optional; sent as ?x-apikey=; env NODE_API_KEY (name set by api_key_variable) wins
 # max_logs_range = 30                                  # blocks per eth_getLogs request; public Flare nodes cap it at 30
 # max_batch_size = 50                                  # calls per JSON-RPC batch; lower it for endpoints that limit batches or bursts
@@ -130,7 +130,7 @@ enable = false
 max_token_age = "5m"      # 0 skips freshness check
 require_sec_boot = false
 
-# Accept tee-node "magic_pass" sentinel; for non-Confidential-Space test runs only.
+# Accept fcc-node "magic_pass" sentinel; for non-Confidential-Space test runs only.
 allow_magic_pass = false
 
 
@@ -155,5 +155,5 @@ enable = true
 # attestation   = true   # attestation verify outcomes
 # policy        = true   # active (newest) and oldest-resident signing-policy reward-epoch gauges
 # liveness      = true   # readiness gauge + info-staleness gauge
-# node          = true   # TEE-node response-wait latency/outcomes and machine-path poll-cycle outcomes (info, wallet, machinepath)
+# node          = true   # FCC-node response-wait latency/outcomes and machine-path poll-cycle outcomes (info, wallet, machinepath)
 # runtime       = true   # Go runtime/process collectors and build info

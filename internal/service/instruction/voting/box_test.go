@@ -7,11 +7,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/service/instruction/voting/limiter"
-	"github.com/flare-foundation/tee-proxy/internal/service/wallets"
-	"github.com/flare-foundation/tee-proxy/pkg/instruction/meta"
-	"github.com/flare-foundation/tee-proxy/pkg/status"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/service/instruction/voting/limiter"
+	"github.com/flare-foundation/fcc-proxy/internal/service/wallets"
+	"github.com/flare-foundation/fcc-proxy/pkg/instruction/meta"
+	"github.com/flare-foundation/fcc-proxy/pkg/status"
 )
 
 type rejectReasonCase struct {
@@ -100,7 +100,7 @@ func TestInstructionRejectedPreInitMatchesRejectReason(t *testing.T) {
 
 	got := map[string]bool{}
 	for _, f := range families {
-		if f.GetName() != "teeproxy_instructions_rejected_total" {
+		if f.GetName() != "fccproxy_instructions_rejected_total" {
 			continue
 		}
 		for _, series := range f.GetMetric() {

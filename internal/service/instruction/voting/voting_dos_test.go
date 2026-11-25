@@ -12,9 +12,9 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 
-	"github.com/flare-foundation/tee-proxy/internal/service/instruction/voting/limiter"
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/internal/service/instruction/voting/limiter"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
 )
 
 // TestCheckSizeRejectsOversizedCosigners guards the cosigner-count bound: checkSize must

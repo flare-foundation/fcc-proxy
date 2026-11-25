@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 )
 
 // MemStorage is an in-memory implementation of storage.Storage[T] for use in tests.

@@ -7,23 +7,23 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/flare-foundation/tee-proxy/pkg/attestation"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/pkg/attestation"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
 
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/internal/service/result"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/internal/service/result"
 
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/utils"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/utils"
 )
 
 // BlockHasher supplies the recent block hash used as the attestation challenge.
@@ -55,7 +55,7 @@ type Service struct {
 	sync.RWMutex
 }
 
-// NewService creates an info Service that periodically refreshes TEE info from the tee-node
+// NewService creates an info Service that periodically refreshes TEE info from the fcc-node
 // and, when ac.Enabled, verifies the response's attestation. m may be nil or disabled.
 // LastUpdated starts at construction time so info_service_delay_seconds reports real elapsed
 // time from boot instead of a multi-decade spike before the first refresh.
@@ -83,7 +83,7 @@ func (s *Service) LastAttestationErr() error {
 	return s.lastAttestationErr
 }
 
-// LastAppliedPolicyID returns the reward epoch ID of the signing policy the tee-node
+// LastAppliedPolicyID returns the reward epoch ID of the signing policy the fcc-node
 // most recently reported as active.
 func (s *Service) LastAppliedPolicyID() uint32 {
 	s.RLock()
@@ -94,7 +94,7 @@ func (s *Service) LastAppliedPolicyID() uint32 {
 	return s.Latest.TeeInfo.LastSigningPolicyID
 }
 
-// LastGovernanceHash returns the governance hash the tee-node most recently
+// LastGovernanceHash returns the governance hash the fcc-node most recently
 // reported in its machine data.
 func (s *Service) LastGovernanceHash() common.Hash {
 	s.RLock()

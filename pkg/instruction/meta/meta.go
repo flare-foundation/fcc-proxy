@@ -8,14 +8,14 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 
-	"github.com/flare-foundation/tee-proxy/internal/service/wallets"
-	"github.com/flare-foundation/tee-proxy/pkg/status"
+	"github.com/flare-foundation/fcc-proxy/internal/service/wallets"
+	"github.com/flare-foundation/fcc-proxy/pkg/status"
 
-	"github.com/flare-foundation/tee-node/pkg/fdc"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/utils"
-	nodewallets "github.com/flare-foundation/tee-node/pkg/wallets"
-	"github.com/flare-foundation/tee-node/pkg/wallets/backup"
+	"github.com/flare-foundation/fcc-node/pkg/fdc"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/utils"
+	nodewallets "github.com/flare-foundation/fcc-node/pkg/wallets"
+	"github.com/flare-foundation/fcc-node/pkg/wallets/backup"
 )
 
 const (
@@ -51,7 +51,7 @@ type meta struct {
 
 // New creates a Meta implementation backed by the given wallets Service.
 // chainID is bound into FDC2 message hashes during consistency checks; it
-// must match the chainID configured on the TEE node.
+// must match the chainID configured on the FCC node.
 func New(ws *wallets.Service, chainID uint64) Meta {
 	return &meta{ws: ws, chainID: chainID}
 }

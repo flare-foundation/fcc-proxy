@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	teeattestation "github.com/flare-foundation/fcc-node/pkg/attestation"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/attestation/googlecloud"
-	teeattestation "github.com/flare-foundation/tee-node/pkg/attestation"
-	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
 //go:embed root_certs/google_confidential_space_root.crt
@@ -64,7 +64,7 @@ type Config struct {
 	MaxTokenAge         time.Duration // 0 → skip
 	RequireSecBoot      bool          // false → skip
 
-	// AllowMagicPass accepts the tee-node sentinel; dev/test only.
+	// AllowMagicPass accepts the fcc-node sentinel; dev/test only.
 	AllowMagicPass bool
 }
 

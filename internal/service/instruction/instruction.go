@@ -7,19 +7,19 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/internal/service/instruction/voting"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/pkg/instruction/meta"
+	pkgvoting "github.com/flare-foundation/fcc-proxy/pkg/instruction/voting"
+	"github.com/flare-foundation/fcc-proxy/pkg/status"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/internal/service/instruction/voting"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
-	"github.com/flare-foundation/tee-proxy/pkg/instruction/meta"
-	pkgvoting "github.com/flare-foundation/tee-proxy/pkg/instruction/voting"
-	"github.com/flare-foundation/tee-proxy/pkg/status"
 
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
 )
 
 var (
@@ -44,7 +44,7 @@ type Service struct {
 }
 
 // NewService creates a new instruction Service with the given voting config, TEE identity, and dependencies.
-// chainID is bound into the instruction signing hash and must match the TEE node's chain ID.
+// chainID is bound into the instruction signing hash and must match the FCC node's chain ID.
 // m may be nil or disabled.
 func NewService(ctx context.Context, votingCfg *config.Voting, teeID common.Address, policiesChan <-chan policy.SigningPolicy, aq *queue.ActionQueues, meta meta.Meta, chainID uint64, m *metrics.Metrics) *Service {
 	vs := voting.NewStorage(ctx, votingCfg, meta, m)

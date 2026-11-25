@@ -11,16 +11,16 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/internal/service/instruction/voting"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/internal/service/instruction/voting"
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 
@@ -603,7 +603,7 @@ func setupInstructionServiceWithMetrics(t *testing.T, teeID common.Address, sp *
 	return mr, c, s
 }
 
-// rejectedCount reads teeproxy_instructions_rejected_total for the given reason label
+// rejectedCount reads fccproxy_instructions_rejected_total for the given reason label
 // from the metrics registry, returning 0 if no series with that label exists.
 func rejectedCount(t *testing.T, m *metrics.Metrics, reason string) float64 {
 	t.Helper()
@@ -612,7 +612,7 @@ func rejectedCount(t *testing.T, m *metrics.Metrics, reason string) float64 {
 	require.NoError(t, err)
 
 	for _, f := range fams {
-		if f.GetName() != "teeproxy_instructions_rejected_total" {
+		if f.GetName() != "fccproxy_instructions_rejected_total" {
 			continue
 		}
 		for _, mc := range f.GetMetric() {
@@ -627,7 +627,7 @@ func rejectedCount(t *testing.T, m *metrics.Metrics, reason string) float64 {
 	return 0
 }
 
-// finalizedActionLostCount reads teeproxy_finalized_action_lost_total for the given reason
+// finalizedActionLostCount reads fccproxy_finalized_action_lost_total for the given reason
 // label from the metrics registry, returning 0 if no series with that label exists.
 func finalizedActionLostCount(t *testing.T, m *metrics.Metrics, reason string) float64 {
 	t.Helper()
@@ -636,7 +636,7 @@ func finalizedActionLostCount(t *testing.T, m *metrics.Metrics, reason string) f
 	require.NoError(t, err)
 
 	for _, f := range fams {
-		if f.GetName() != "teeproxy_finalized_action_lost_total" {
+		if f.GetName() != "fccproxy_finalized_action_lost_total" {
 			continue
 		}
 		for _, mc := range f.GetMetric() {

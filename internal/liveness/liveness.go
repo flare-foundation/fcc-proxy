@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/service/info"
+	"github.com/flare-foundation/fcc-proxy/internal/service/result"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/service/info"
-	"github.com/flare-foundation/tee-proxy/internal/service/result"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -69,7 +69,7 @@ func New(chain headSource, client *redis.Client, info *info.Service, results *re
 	if chain != nil {
 		// Scrape-time read of the source's last block timestamp. A read error reports 0
 		// and consumes the full cChainDelayReadTimeout (reads retry under the ctx);
-		// the source-down case is caught by readiness (TeeProxyNotReady), so this gauge targets
+		// the source-down case is caught by readiness (FccProxyNotReady), so this gauge targets
 		// the stale-but-reachable source, which reads fine and returns a large delay.
 		m.RegisterCChainDelay(func() float64 {
 			delay, err := chainDelay(context.Background(), chain)

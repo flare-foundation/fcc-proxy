@@ -3,9 +3,9 @@ package queue
 import (
 	"encoding/json"
 
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/random"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
 // PrepareDirectAction wraps a payload as a Direct/Submit action ready for enqueue.

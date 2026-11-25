@@ -12,17 +12,17 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/service/instruction/voting/limiter"
+	"github.com/flare-foundation/fcc-proxy/internal/service/wallets"
+	"github.com/flare-foundation/fcc-proxy/pkg/instruction/meta"
+	"github.com/flare-foundation/fcc-proxy/pkg/instruction/voting"
+	"github.com/flare-foundation/fcc-proxy/pkg/status"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/service/instruction/voting/limiter"
-	"github.com/flare-foundation/tee-proxy/internal/service/wallets"
-	"github.com/flare-foundation/tee-proxy/pkg/instruction/meta"
-	"github.com/flare-foundation/tee-proxy/pkg/instruction/voting"
-	"github.com/flare-foundation/tee-proxy/pkg/status"
 
-	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 )
 
 var (

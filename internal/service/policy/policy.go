@@ -8,19 +8,19 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/internal/service/result"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/retry"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/internal/service/result"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
-	"github.com/flare-foundation/tee-proxy/pkg/policy"
 )
 
-// nodePolicyState reports the reward epoch of the signing policy the tee-node has most
+// nodePolicyState reports the reward epoch of the signing policy the fcc-node has most
 // recently applied. Implemented by the info service; used to reconcile the proxy's
 // active policy with the node after a missed update confirmation.
 type nodePolicyState interface {
@@ -163,7 +163,7 @@ func (s *Service) Run(ctx context.Context, src policy.Source, policyFetchInterva
 }
 
 const (
-	// confirmationWaitTimeout bounds how long the update loop waits for the tee-node to
+	// confirmationWaitTimeout bounds how long the update loop waits for the fcc-node to
 	// confirm an UPDATE_POLICY before retrying. It must stay well under the result
 	// storage TTL so the confirmation is still available when awaited.
 	confirmationWaitTimeout = 2 * time.Minute

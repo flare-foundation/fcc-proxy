@@ -10,19 +10,19 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	cmpaths "github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
-	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-proxy/internal/chain/chaintest"
-	"github.com/flare-foundation/tee-proxy/internal/chain/indexer"
-	"github.com/flare-foundation/tee-proxy/internal/chain/jsonrpc"
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
-	"github.com/flare-foundation/tee-proxy/pkg/machinepath"
-	"github.com/flare-foundation/tee-proxy/pkg/policy"
+	"github.com/flare-foundation/fcc-proxy/internal/chain/chaintest"
+	"github.com/flare-foundation/fcc-proxy/internal/chain/indexer"
+	"github.com/flare-foundation/fcc-proxy/internal/chain/jsonrpc"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/pkg/machinepath"
+	"github.com/flare-foundation/fcc-proxy/pkg/policy"
 )
 
 const chainID = 14
@@ -64,7 +64,7 @@ func directRequest(t *testing.T, action *types.Action) json.RawMessage {
 }
 
 // TestPolicyConformance runs a fresh start, a restart lookup and a rollover over
-// one history; both sources must give the TEE node identical requests.
+// one history; both sources must give the FCC node identical requests.
 func TestPolicyConformance(t *testing.T) {
 	c := chaintest.New(t, chainID, 4)
 	keys := testutil.Keys(t, 3)
@@ -181,7 +181,7 @@ func TestPolicyConformanceShallowHistory(t *testing.T) {
 }
 
 // TestMachinePathConformance builds the action for a governance-signed list and a
-// Safe-approved one; both sources must give the TEE node identical requests.
+// Safe-approved one; both sources must give the FCC node identical requests.
 func TestMachinePathConformance(t *testing.T) {
 	c := chaintest.New(t, chainID, 0)
 	ext := common.HexToHash("0x2a")

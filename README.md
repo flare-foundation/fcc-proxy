@@ -1,6 +1,9 @@
 <div align="center"> <a href="https://flare.network/" target="blank"> <img src="https://content.flare.network/Flare-2.svg" width="300" alt="Flare Logo" /> </a> <br /> <a href="CONTRIBUTING.md">Contributing</a> · <a href="SECURITY.md">Security</a> · <a href="CHANGELOG.md">Changelog</a> </div>
 
-# Flare TEE proxy
+# FCC Proxy
+
+The Flare Confidential Compute (FCC) proxy sits between external clients and an FCC node, a server running inside a Trusted Execution Environment (TEE).
+It collects votes on instructions until they reach their threshold, queues the resulting actions for the node and stores the node's results.
 
 ## Running
 
@@ -38,16 +41,16 @@ max_logs_range = 30 # blocks per eth_getLogs request; public Flare nodes cap it 
 
 An endpoint that needs credentials can take them in `url` itself, as a key in the path or query or as `user:password@` for basic auth, or in `api_key` (or `NODE_API_KEY`), which is sent as the `x-apikey` query parameter, as the C-chain indexer does.
 The environment variables `NODE_URL` and `NODE_API_KEY` override `url` and `api_key` (`url_variable` and `api_key_variable` rename them); they are the C-chain indexer's, so both services can share them.
-Here "node" is the C-chain node serving JSON-RPC, not the TEE node.
+Here "node" is the C-chain node serving JSON-RPC, not the FCC node.
 Keep the URL and key in the environment rather than the config file; the proxy keeps both out of its logs and errors.
 
-On a fresh start the proxy sends the TEE node its initial signing policy and the voters' public keys, which become the node's root of trust.
+On a fresh start the proxy sends the FCC node its initial signing policy and the voters' public keys, which become the node's root of trust.
 The node cannot verify them, and the restart backfill feeds instruction voting the same way, so in `rpc` mode they are only as trustworthy as the endpoint.
 Use public endpoints for tests; in production use the indexer or a node you run.
 
 The modes differ in a few places:
 
-- Readiness and `teeproxy_cchain_indexer_delay_seconds` track the node's newest block instead of the last indexed one.
+- Readiness and `fccproxy_cchain_indexer_delay_seconds` track the node's newest block instead of the last indexed one.
 - A machine path list carries every governance signature the contract stored, including ones added after activation.
 - A Safe approval comes from the contract's confirmed-approval record (`confirmMachinePathListSafeApproval`) instead of the Safe's own transaction.
 - How far back `voting.history_size` reaches, on a fresh start or a restart, depends on the node's log retention instead of the indexer's.
@@ -65,7 +68,7 @@ The proxy listens on two TCP ports with different trust models:
   Public by design: all `GET` routes (`/info`, `/wallet/*`, `/backup/*`, `/action/*`) are unauthenticated.
   `POST /instruction` verifies a per-payload signature; `POST /direct` (if enabled) requires an API key.
   TLS must be terminated upstream (ingress, sidecar, or front-proxy) — the server speaks cleartext HTTP.
-- **`6661` (internal)** — TEE-node-facing.
+- **`6661` (internal)** — FCC-node-facing.
   No app-layer authentication; access control is assumed to be enforced by the network.
   `POST /queue/*` is unauthenticated; `POST /result` verifies the TEE's signature but still relies on network isolation for the startup window.
   This port must **not** be reachable from outside the pod/host.
@@ -89,7 +92,7 @@ enable = true
 ```
 
 Groups: `http`, `storage`, `queue`, `voting`, `active_voters`, `result`, `wallet`, `info`, `attestation`, `policy`, `liveness`, `node`, `runtime`.
-Metric names are prefixed `teeproxy_`; the `runtime` group also exports the standard `go_*` and `process_*` collectors.
+Metric names are prefixed `fccproxy_`; the `runtime` group also exports the standard `go_*` and `process_*` collectors.
 
 ## Direct Endpoint
 
@@ -135,10 +138,10 @@ curl -X POST http://localhost:6662/direct \
 
 ### Building
 
-Clone tee-node and tee-proxy repositories and run the following command
+Clone fcc-node and fcc-proxy repositories and run the following command
 
 ```bash
-docker build -t {IMAGE_TAG} -f tee-proxy/Dockerfile
+docker build -t {IMAGE_TAG} -f fcc-proxy/Dockerfile
 ```
 
 ### Running
@@ -153,7 +156,7 @@ docker run -p 6661:6661 -p 6662:6662 \
   {IMAGE_TAG}
 ```
 
-With `[chain] source = "rpc"`, pass the C-chain endpoint (not the TEE node) as `-e NODE_URL=...`, and its key as `-e NODE_API_KEY=...` if it needs one.
+With `[chain] source = "rpc"`, pass the C-chain endpoint (not the FCC node) as `-e NODE_URL=...`, and its key as `-e NODE_API_KEY=...` if it needs one.
 
 If you have `indexer-db` and `redis` running in docker-compose add the `--network` flag
 

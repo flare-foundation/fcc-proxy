@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/flare-foundation/fcc-proxy/internal/chain/indexer"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/service/info"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
-	"github.com/flare-foundation/tee-proxy/internal/chain/indexer"
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/service/info"
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -169,7 +169,7 @@ func TestCChainDelayGauge(t *testing.T) {
 
 func TestCChainDelayGaugeReadError(t *testing.T) {
 	// No last_database_block row: FetchState fails, so the gauge must report 0 rather than
-	// a bogus time.Since(epoch). This is the branch the critical TeeProxyCChainStale rests on.
+	// a bogus time.Since(epoch). This is the branch the critical FccProxyCChainStale rests on.
 	// NOTE: FetchState retries under the 2s timeout, so Gather blocks ~2s here — expected, not a hang.
 	db, _, redisClient, infoSvc := setup(t, "cchain-read-error")
 	require.NoError(t, db.AutoMigrate(&database.State{})) // table exists but is empty
@@ -194,7 +194,7 @@ func cchainGauge(t *testing.T, m *metrics.Metrics) (float64, bool) {
 	families, err := m.Registry().Gather()
 	require.NoError(t, err)
 	for _, f := range families {
-		if f.GetName() == "teeproxy_cchain_indexer_delay_seconds" {
+		if f.GetName() == "fccproxy_cchain_indexer_delay_seconds" {
 			return f.GetMetric()[0].GetGauge().GetValue(), true
 		}
 	}

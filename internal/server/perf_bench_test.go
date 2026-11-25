@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
 )
 
 // nopRW is a reusable no-op ResponseWriter so the benchmark measures the middleware

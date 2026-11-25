@@ -1,5 +1,5 @@
 // Package machinepath provides the service that watches the chain for
-// governance-signed machine path lists and forwards them to the TEE node as
+// governance-signed machine path lists and forwards them to the FCC node as
 // SET_MACHINE_PATH_LIST direct actions.
 package machinepath
 
@@ -9,16 +9,16 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/internal/service/result"
+	"github.com/flare-foundation/fcc-proxy/pkg/machinepath"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/internal/service/result"
-	"github.com/flare-foundation/tee-proxy/pkg/machinepath"
 )
 
-// responseWaitTimeout bounds how long a poll waits for the TEE node to confirm a
+// responseWaitTimeout bounds how long a poll waits for the FCC node to confirm a
 // submitted SET_MACHINE_PATH_LIST action before giving up and retrying on the
 // next tick.
 const responseWaitTimeout = 2 * time.Minute
@@ -111,7 +111,7 @@ func (s *Service) poll(ctx context.Context, src machinepath.Source) {
 		return
 	}
 
-	// Advance lastNonce only once the TEE node confirms the action succeeded;
+	// Advance lastNonce only once the FCC node confirms the action succeeded;
 	// otherwise the next poll retries the same list.
 	start := time.Now()
 	response, err := s.responses.WaitOnResponse(ctx, action.Data.ID, action.Data.SubmissionTag, responseWaitTimeout)

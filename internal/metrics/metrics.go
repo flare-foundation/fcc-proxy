@@ -18,13 +18,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/flare-foundation/tee-proxy/internal/version"
-	"github.com/flare-foundation/tee-proxy/pkg/attestation"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
+	"github.com/flare-foundation/fcc-proxy/internal/version"
+	"github.com/flare-foundation/fcc-proxy/pkg/attestation"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 )
 
-// namespace prefixes every metric name, yielding teeproxy_*.
-const namespace = "teeproxy"
+// namespace prefixes every metric name, yielding fccproxy_*.
+const namespace = "fccproxy"
 
 // httpBuckets spans fast JSON replies up to the slowest handlers. The 30s/60s tail sits
 // above the servers' 15s WriteTimeout on purpose: that timeout aborts only the response
@@ -259,7 +259,7 @@ func New(cfg Config) *Metrics {
 			Help: "Finalized actions lost before enqueue or on send to the node, by reason.",
 		}, []string{"reason"})
 		// Pre-initialize so a first, possibly one-shot drop satisfies increase()>0 (a series born at 1 never
-		// does); build_error and send_failed feed the TeeProxyFinalizedActionLost/SendFailed alerts.
+		// does); build_error and send_failed feed the FccProxyFinalizedActionLost/SendFailed alerts.
 		for _, reason := range []string{"build_error", "send_cancelled", "send_failed"} {
 			m.finalizedActionLost.WithLabelValues(reason).Add(0)
 		}
@@ -316,7 +316,7 @@ func New(cfg Config) *Metrics {
 			Help: "Attestation verification attempts by result and reason.",
 		}, []string{"result", "reason"})
 		// Pre-initialize so a first, possibly one-shot verification event satisfies increase()>0 (a series born at 1 never does).
-		// The ok/magic_pass series is pre-initialized too so the critical, no-for: TeeProxyMagicPassAccepted fires on the first accepted sentinel.
+		// The ok/magic_pass series is pre-initialized too so the critical, no-for: FccProxyMagicPassAccepted fires on the first accepted sentinel.
 		m.attestationVerify.WithLabelValues("ok", "ok").Add(0)
 		m.attestationVerify.WithLabelValues("ok", attestation.ReasonMagicPass).Add(0)
 		for _, reason := range attestation.ErrorReasons {
@@ -331,11 +331,11 @@ func New(cfg Config) *Metrics {
 	if cfg.Node {
 		m.nodeWaitDuration = f.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: namespace, Subsystem: "node", Name: "response_wait_duration_seconds",
-			Help: "Synchronous wait for a TEE-node response, by path.", Buckets: nodeBuckets,
+			Help: "Synchronous wait for an FCC-node response, by path.", Buckets: nodeBuckets,
 		}, []string{"path"})
 		m.nodeWaitTotal = f.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace, Subsystem: "node", Name: "response_wait_total",
-			Help: "TEE-node response waits by path and outcome.",
+			Help: "FCC-node response waits by path and outcome.",
 		}, []string{"path", "result"})
 		// Pre-initialize the alertable series so a first, possibly one-shot wait failure satisfies increase()>0.
 		for _, path := range []string{"info", "machinepath", "wallet_key_info", "wallet_key_proof", "policy_update"} {
@@ -669,7 +669,7 @@ func (m *Metrics) SetAttestationPosture(settings map[string]bool) {
 	}
 }
 
-// ObserveNodeWait records one synchronous wait for a TEE-node response on the given
+// ObserveNodeWait records one synchronous wait for an FCC-node response on the given
 // path ("info"/"machinepath"/"wallet_key_info"/"wallet_key_proof"/"policy_update"),
 // classifying the outcome from err ("ok"/"timeout"/"cancelled"/"error").
 func (m *Metrics) ObserveNodeWait(path string, d time.Duration, err error) {
@@ -738,7 +738,7 @@ func (m *Metrics) NodeEnabled() bool {
 }
 
 // RegisterGovernanceHashMatch registers a scrape-time gauge reporting whether the
-// governance hash the tee-node last reported still equals the proxy's startup-resolved
+// governance hash the fcc-node last reported still equals the proxy's startup-resolved
 // snapshot (1 = match, 0 = the node's governance rotated after startup, so Safe
 // pre-verification runs against a stale snapshot). Registered only when [governance]
 // is configured; no-op when the node group is disabled.
@@ -796,7 +796,7 @@ func (m *Metrics) RegisterOldestStoredPolicy(oldest func() float64) {
 	}, oldest))
 }
 
-// RegisterNodeAppliedPolicy registers a scrape-time gauge of the tee-node's last applied
+// RegisterNodeAppliedPolicy registers a scrape-time gauge of the fcc-node's last applied
 // signing-policy reward epoch. No-op when the policy group is disabled.
 func (m *Metrics) RegisterNodeAppliedPolicy(applied func() float64) {
 	if !m.PolicyEnabled() || applied == nil {
@@ -804,7 +804,7 @@ func (m *Metrics) RegisterNodeAppliedPolicy(applied func() float64) {
 	}
 	m.reg.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 		Namespace: namespace, Name: "node_applied_policy_epoch",
-		Help: "Reward epoch of the signing policy the tee-node reports it has most recently applied.",
+		Help: "Reward epoch of the signing policy the fcc-node reports it has most recently applied.",
 	}, applied))
 }
 
@@ -956,7 +956,7 @@ func (m *Metrics) RegisterWalletKeysCached(count func() float64) {
 	}, count))
 }
 
-// ResultProcessed records one validated TEE-node result delivery by op command and status
+// ResultProcessed records one validated FCC-node result delivery by op command and status
 // class. It is counted after the identity gates but before storage, so a re-delivery that the
 // storage override-guard later rejects (a duplicate of an already-persisted result) still
 // counts here: it measures processed deliveries, not distinct stored results.
