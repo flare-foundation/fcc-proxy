@@ -226,6 +226,7 @@ func (m *meta) CheckConsistency(data *instruction.Data, signer common.Address) e
 }
 
 // fdcCheckConsistency checks that signer of the FDC message is the same as the signer of the whole instruction.
+// An unverified vote (empty response) is not checked: it never reaches the node.
 //
 // Data providers and cosigners sign the chain-bound Relay Mode-2 prefixed hash
 // (matches the on-chain Fdc2ProofVerification.toCosignersMessageHash +
@@ -236,6 +237,10 @@ func fdcCheckConsistency(chainID uint64, data *instruction.Data, signer common.A
 	fdcReq, err := fdc.DecodeRequest(data.OriginalMessage)
 	if err != nil {
 		return fmt.Errorf("decoding FDC request: %w", err)
+	}
+
+	if len(data.AdditionalFixedMessage) == 0 {
+		return nil
 	}
 
 	resBody := data.AdditionalFixedMessage

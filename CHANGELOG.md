@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added
+
+- An FDC2 PROVE instruction that its data providers or cosigners could not verify gets a failed result without reaching the FCC node.
+  The relay sends such a vote with an empty additional fixed message, and these votes form their own voting.
+  It finalizes once the verified voting can no longer reach its threshold: when its weight reaches the total weight minus the threshold, or when more cosigners vote in it than the cosigner count minus the cosigner threshold.
+  The proxy then stores a status `0` threshold result whose log starts with `unverified:`, with no TEE signature and `data` `{"voters":[…]}` listing the voters in vote order; no end action is sent.
+  The result is informative only: it tells whoever waits for the request that it will not be confirmed, and carries no proof.
+  `GET /action/status` marks such a voting `"unverified": true`.
+  Deploy the proxy before a relay that sends unverified votes: an earlier proxy answers them with 400.
+
 ### Changed
 
 - **Breaking:** the module is renamed from `github.com/flare-foundation/tee-proxy` to `github.com/flare-foundation/fcc-proxy`, and docs, logs and comments say FCC proxy and FCC node instead of TEE proxy and TEE node.

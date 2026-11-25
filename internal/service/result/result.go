@@ -2,6 +2,7 @@ package result
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -158,6 +159,50 @@ func (s *Service) ProcessAndStore(ctx context.Context, r *types.ActionResponse) 
 
 	s.metrics.ResultProcessed(r.Result.OPCommand, r.Result.Status)
 
+	return s.store(ctx, r)
+}
+
+// UnverifiedLog is the log of a failed FDC2 PROVE result the proxy stores for an unverified voting.
+const UnverifiedLog = "unverified: the data providers or cosigners that could not verify the request leave it unable to reach its threshold; result set by the proxy, not the TEE"
+
+// unverifiedData is the data of an UnverifiedLog result.
+type unverifiedData struct {
+	Voters []common.Address `json:"voters"` // in vote order
+}
+
+// StoreUnverified stores a failed threshold result for FDC2 PROVE instruction id, which voters
+// could not verify; the TEE never sees the instruction. A final result already stored wins.
+func (s *Service) StoreUnverified(ctx context.Context, id common.Hash, voters []common.Address) error {
+	data, err := json.Marshal(unverifiedData{Voters: voters})
+	if err != nil {
+		return fmt.Errorf("marshaling unverified data: %w", err)
+	}
+
+	r := &types.ActionResponse{
+		Result: types.ActionResult{
+			ID:            id,
+			SubmissionTag: types.Threshold,
+			Status:        0,
+			Log:           UnverifiedLog,
+			OPType:        op.FDC2.Hash(),
+			OPCommand:     op.Prove.Hash(),
+			Data:          data,
+		},
+	}
+
+	logger.Infof("instruction %s unverified by %d voters, storing failed result: %v", id, len(voters), voters)
+
+	err = s.store(ctx, r)
+	if errors.Is(err, errOverrideFinal) {
+		logger.Warnf("instruction %s already has a final result, unverified result dropped", id)
+		return nil
+	}
+
+	return err
+}
+
+// store stores r and records the outcome for liveness and metrics.
+func (s *Service) store(ctx context.Context, r *types.ActionResponse) error {
 	err := s.rs.StoreResponse(ctx, r)
 	switch {
 	case errors.Is(err, errOverrideFinal), errors.Is(err, errOverrideTransient):
@@ -165,8 +210,8 @@ func (s *Service) ProcessAndStore(ctx context.Context, r *types.ActionResponse) 
 		// result: neither data loss nor a storage failure. Leave the liveness
 		// signal untouched and do not count it as lost.
 	case err != nil:
-		// Acknowledged to the node but not persisted: a genuine loss. Record it so
-		// readiness reflects the failure and count it as lost.
+		// Not persisted: a genuine loss. Record it so readiness reflects the
+		// failure and count it as lost.
 		s.recordStorageResult(err)
 		s.metrics.ResultLost()
 	default:

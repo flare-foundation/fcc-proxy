@@ -55,7 +55,7 @@ func TestVoting(t *testing.T) {
 		OPType:                    op.FDC2.Hash(),
 		OPCommand:                 op.Prove.Hash(),
 		OriginalMessage:           []byte("TODO"),
-		AdditionalFixedMessage:    hexutil.Bytes{},
+		AdditionalFixedMessage:    hexutil.Bytes("response"),
 		AdditionalVariableMessage: hexutil.Bytes{},
 	}
 
@@ -136,7 +136,7 @@ func TestStatus(t *testing.T) {
 		OPType:                    op.FDC2.Hash(),
 		OPCommand:                 op.Prove.Hash(),
 		OriginalMessage:           []byte("TODO"),
-		AdditionalFixedMessage:    hexutil.Bytes{},
+		AdditionalFixedMessage:    hexutil.Bytes("response"),
 		AdditionalVariableMessage: hexutil.Bytes{},
 	}
 
@@ -379,7 +379,7 @@ func createBaseInstructionData(testName string, teeID common.Address) *instructi
 		OPType:                    op.FDC2.Hash(),
 		OPCommand:                 op.Prove.Hash(),
 		OriginalMessage:           []byte("TEST_MESSAGE"),
-		AdditionalFixedMessage:    hexutil.Bytes{},
+		AdditionalFixedMessage:    hexutil.Bytes("response"),
 		AdditionalVariableMessage: hexutil.Bytes{},
 	}
 }

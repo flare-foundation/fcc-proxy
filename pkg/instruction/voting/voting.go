@@ -27,6 +27,9 @@ type Status struct {
 	Threshold          uint16           `json:"threshold"`
 	Cosigners          uint16           `json:"cosigners"`
 	CosignersThreshold uint16           `json:"cosignersThreshold"`
+	// Unverified votings collect FDC2 votes that could not verify the request; one finalizes
+	// when Weight > Threshold or Cosigners > CosignersThreshold.
+	Unverified bool `json:"unverified,omitempty"`
 }
 
 // Statuses aggregates all voting statuses for a given instruction ID within a reward epoch.

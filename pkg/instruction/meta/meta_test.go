@@ -473,3 +473,19 @@ func TestRestoreBackupMetadata(t *testing.T) {
 		require.ErrorIs(t, err, ErrMalformedPayload)
 	})
 }
+
+func TestFDCUnverifiedConsistency(t *testing.T) {
+	m := New(nil, 14)
+	signer := common.HexToAddress("a1")
+
+	unverified := func(original []byte) *instruction.Data {
+		return &instruction.Data{
+			OPType:          op.FDC2.Hash(),
+			OPCommand:       op.Prove.Hash(),
+			OriginalMessage: original,
+		}
+	}
+
+	require.NoError(t, m.CheckConsistency(unverified(encodeFDC2Request(t, 5000)), signer))
+	require.Error(t, m.CheckConsistency(unverified([]byte("malformed")), signer))
+}

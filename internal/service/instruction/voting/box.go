@@ -48,6 +48,8 @@ type proposal struct {
 
 	cosigners         map[common.Address]bool
 	cosignerThreshold uint16
+
+	unverified bool
 }
 
 // newProposal assembles a new proposal.
@@ -59,7 +61,18 @@ func newProposal(data *instruction.DataFixed, threshold uint16, cosigners map[co
 
 		cosigners:         cosigners,
 		cosignerThreshold: uint16(cosignerThreshold),
+
+		unverified: isUnverified(data),
 	}
+}
+
+// reached reports whether weight and cosignerWeight pass the thresholds: an unverified
+// proposal needs either one, any other both.
+func (p *proposal) reached(weight, cosignerWeight uint16) bool {
+	if p.unverified {
+		return weight > p.threshold || cosignerWeight > p.cosignerThreshold
+	}
+	return weight > p.threshold && cosignerWeight >= p.cosignerThreshold
 }
 
 type vote struct {
@@ -98,6 +111,23 @@ type voteBox struct {
 // isRestore reports whether data is a KEY_DATA_PROVIDER_RESTORE.
 func isRestore(data *instruction.DataFixed) bool {
 	return data.OPType == op.Wallet.Hash() && data.OPCommand == op.KeyDataProviderRestore.Hash()
+}
+
+// isUnverified reports whether data is an FDC2 PROVE vote whose voter could not verify the request.
+func isUnverified(data *instruction.DataFixed) bool {
+	return data.OPType == op.FDC2.Hash() && data.OPCommand == op.Prove.Hash() && len(data.AdditionalFixedMessage) == 0
+}
+
+// unverifiedThresholds turns the thresholds of a verified voting into those of its unverified
+// one, which passes once the verified one can no longer reach weight > threshold out of total,
+// or cosigners >= cosignerThreshold out of n.
+func unverifiedThresholds(total, threshold uint16, n int, cosignerThreshold uint64) (uint16, uint64) {
+	var t uint16
+	if total > threshold {
+		t = total - threshold - 1
+	}
+
+	return t, uint64(n) - cosignerThreshold
 }
 
 // startVoteBox opens a new voting process: it admits the proposer against the round's limiter
@@ -162,6 +192,10 @@ func buildVoteBox(data *instruction.Data, signer common.Address, round *Round, m
 	// the finalization gate agrees with the signed uint64 value.
 	if cosignerThreshold > uint64(len(cosigners)) {
 		return nil, fmt.Errorf("%w: %d > %d", errInvalidCosignerThreshold, cosignerThreshold, len(cosigners))
+	}
+
+	if isUnverified(&data.DataFixed) {
+		threshold, cosignerThreshold = unverifiedThresholds(round.policy.Voters.TotalWeight, threshold, len(cosigners), cosignerThreshold)
 	}
 
 	box, err := newVoteBox(&data.DataFixed, signer, threshold, cosigners, cosignerThreshold)
@@ -274,6 +308,7 @@ func (vb *voteBox) Status() voting.Status {
 		Threshold:          threshold,
 		Cosigners:          vb.cosignerWeight,
 		CosignersThreshold: cosignersThreshold,
+		Unverified:         vb.proposal != nil && vb.proposal.unverified,
 	}
 }
 
@@ -335,7 +370,7 @@ func (vb *voteBox) addVote(signer common.Address, weight uint16, signature []byt
 		VoteHash:                      vb.VoteHash,
 	}
 
-	if !vb.Finalized && vb.weight > vb.proposal.threshold && vb.cosignerWeight >= vb.proposal.cosignerThreshold {
+	if !vb.Finalized && vb.proposal.reached(vb.weight, vb.cosignerWeight) {
 		vb.Finalized = true
 		return receipt, true, nil
 	}
@@ -424,6 +459,10 @@ func (vb *voteBox) scheduleEnd(ctx context.Context, out chan *types.Action, boxe
 
 		if vb.iHash != boxes.FinalizedHash {
 			logger.Debugf("closing finalized box %v, %v that was finalized after %v", vb.iID, vb.iHash, boxes.FinalizedHash)
+			return nil
+		}
+
+		if vb.proposal.unverified { // the node never saw it
 			return nil
 		}
 
@@ -532,6 +571,18 @@ func (vb *voteBox) signersData() (signatures []hexutil.Bytes, additionalVariable
 	}
 
 	return signatures, additionalVariableMessages, timestamps
+}
+
+// voters returns the voters in vote order.
+//
+// Mutex has to be handled by the calling function.
+func (vb *voteBox) voters() []common.Address {
+	v := make([]common.Address, len(vb.votes))
+	for a, vote := range vb.votes {
+		v[vote.Sequence] = a
+	}
+
+	return v
 }
 
 // computeThreshold matches Relay.sol's div(mul(totalWeight, overrideBIPS), THRESHOLD_BIPS).

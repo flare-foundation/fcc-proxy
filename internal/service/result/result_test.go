@@ -3,6 +3,7 @@ package result
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -308,3 +309,59 @@ func (failingStorage) Get(context.Context, string) (*types.ActionResponse, error
 }
 
 func (failingStorage) Remove(context.Context, string) error { return nil }
+
+func TestStoreUnverified(t *testing.T) {
+	mr := miniredis.RunT(t)
+	n := storage.NewNotifier(storage.NewClient(mr.Addr()))
+	voters := []common.Address{common.HexToAddress("b2"), common.HexToAddress("a1")}
+
+	t.Run("stores a failed proxy-made threshold result", func(t *testing.T) {
+		rs := NewStorage(testutil.NewMemStorage[*types.ActionResponse](), n, time.Hour, 30*time.Minute)
+		s := NewService(rs, uint64(14), nil)
+
+		id, err := random.Hash()
+		require.NoError(t, err)
+		require.NoError(t, s.StoreUnverified(t.Context(), id, voters))
+
+		r, err := s.Serve(t.Context(), id, types.Threshold)
+		require.NoError(t, err)
+		require.Equal(t, id, r.Result.ID)
+		require.Equal(t, types.Threshold, r.Result.SubmissionTag)
+		require.Equal(t, uint8(0), r.Result.Status)
+		require.Equal(t, UnverifiedLog, r.Result.Log)
+		require.Equal(t, op.FDC2.Hash(), r.Result.OPType)
+		require.Equal(t, op.Prove.Hash(), r.Result.OPCommand)
+		require.Empty(t, r.Signature, "the TEE never saw the instruction")
+		var d unverifiedData
+		require.NoError(t, json.Unmarshal(r.Result.Data, &d))
+		require.Equal(t, voters, d.Voters, "voters in vote order")
+	})
+
+	t.Run("a stored final result wins", func(t *testing.T) {
+		rs := NewStorage(testutil.NewMemStorage[*types.ActionResponse](), n, time.Hour, 30*time.Minute)
+		s := NewService(rs, uint64(14), nil)
+
+		id, err := random.Hash()
+		require.NoError(t, err)
+		require.NoError(t, rs.StoreResponse(t.Context(), &types.ActionResponse{
+			Result: types.ActionResult{ID: id, SubmissionTag: types.Threshold, Status: 1},
+		}))
+
+		require.NoError(t, s.StoreUnverified(t.Context(), id, voters))
+
+		r, err := s.Serve(t.Context(), id, types.Threshold)
+		require.NoError(t, err)
+		require.Equal(t, uint8(1), r.Result.Status)
+		require.NoError(t, s.LastStorageErr())
+	})
+
+	t.Run("a storage failure is returned and fails readiness", func(t *testing.T) {
+		rs := NewStorage(failingStorage{}, n, time.Hour, 30*time.Minute)
+		s := NewService(rs, uint64(14), nil)
+
+		id, err := random.Hash()
+		require.NoError(t, err)
+		require.ErrorIs(t, s.StoreUnverified(t.Context(), id, voters), errStoreFailed)
+		require.ErrorIs(t, s.LastStorageErr(), errStoreFailed)
+	})
+}
