@@ -90,7 +90,7 @@ type voteBox struct {
 	Finalized bool
 	deleted   bool
 
-	finalizedAt chan time.Time // restore boxes only; passes the finalization time to scheduleEnd
+	finalizedAt chan time.Time // restore only; finalization time for scheduleEnd
 
 	sync.RWMutex
 }

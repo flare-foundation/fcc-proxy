@@ -12,6 +12,8 @@
 - **Breaking:** metric names are prefixed `fccproxy_` instead of `teeproxy_`, the example alerts are named `FccProxy*` instead of `TeeProxy*`, and the example job selector is `fcc-proxy`; alert rules and dashboards on the old names stop matching.
 - **Behavioral:** when a second instruction with the same ID but different data also reaches its threshold, its threshold action is no longer sent, as fcc-node accepts one threshold per instruction ID and would answer it with status `0`.
 - **Behavioral:** `KEY_DATA_PROVIDER_RESTORE` votings stay open for the new `[voting] restore_expiration` (default `8h`) instead of `proposal_expiration`.
+  The node rejects a restore's actions once it has applied two signing-policy updates past the instruction's reward epoch, and it applies each update about 1.5h before the epoch starts, so keep `restore_expiration` under one reward epoch minus 1.5h.
+  The 8h default suits Flare and Songbird (3.5-day epochs); on Coston and Coston2 (6h epochs) set it to about `4h`.
 - **Behavioral:** a finalized restore sends its threshold action 10 minutes after finalization, or at the end of the voting if that comes first, instead of at the end; the end action is still sent at the end.
 - **Behavioral:** the one-threshold-per-ID rule above also covers restores: a second restore with the same ID sends neither its threshold nor its end action, and `GET /action/status` reports a restore's `finalizedHash` instead of a zero hash.
 - The live chain-source tests read `FCCPROXY_LIVE_RPC_URL` and `FCCPROXY_LIVE_RELAY` instead of `TEEPROXY_LIVE_RPC_URL` and `TEEPROXY_LIVE_RELAY`.

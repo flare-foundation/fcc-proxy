@@ -79,6 +79,7 @@ retry_delay = "5s"
 
 [voting]
 proposal_expiration = "120s"
+# Keep under one reward epoch minus ~1.5h or the node rejects late restore actions; ~4h on Coston/Coston2
 restore_expiration = "8h"        # Voting window for KEY_DATA_PROVIDER_RESTORE
 max_pending_request = 100
 history_size = 3                 # Signing policy rounds kept in memory and backfilled at startup (min 2)
