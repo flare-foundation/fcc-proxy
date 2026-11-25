@@ -123,7 +123,7 @@ func TestConcurrentVoteBoxCreationDifferentInstHash(t *testing.T) {
 			OPType:                    op.FDC2.Hash(),
 			OPCommand:                 op.Prove.Hash(),
 			OriginalMessage:           []byte("RACE_TEST_MESSAGE"),
-			AdditionalFixedMessage:    hexutil.Bytes("response"),
+			AdditionalFixedMessage:    hexutil.Bytes{},
 			AdditionalVariableMessage: hexutil.Bytes{},
 		}
 

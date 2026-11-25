@@ -2,6 +2,7 @@ package meta
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -21,9 +22,12 @@ import (
 const (
 	maxBIPS = 10000
 
-	// fdcMinimumThresholdBIPS is the lowest non-zero FDC2 PROVE data-provider
+	// FDCMinimumThresholdBIPS is the lowest non-zero FDC2 PROVE data-provider
 	// threshold (in BIPS) the TEE accepts.
-	fdcMinimumThresholdBIPS = 4000
+	FDCMinimumThresholdBIPS = 4000
+
+	// Decline is the AdditionalFixedMessage of a vote whose voter will not send a valid instruction.
+	Decline = "DECLINE"
 )
 
 // Meta provides meta data for the instructions.
@@ -117,6 +121,13 @@ var (
 	// ErrFDCThresholdTooHigh reports an FDC2 PROVE data-provider threshold at or above the maximum.
 	ErrFDCThresholdTooHigh = fmt.Errorf("%w: FDC2 data provider threshold too high", status.HTTP[400])
 )
+
+var errRestoreDecline = errors.New("restores cannot be declined")
+
+// IsDecline reports whether data is a decline vote.
+func IsDecline(data *instruction.DataFixed) bool {
+	return string(data.AdditionalFixedMessage) == Decline
+}
 
 func checkCosigner(cosigners []common.Address, expectedCosigners map[common.Address]bool, threshold, expectedThreshold uint64) error {
 	if len(cosigners) != len(expectedCosigners) {
@@ -220,13 +231,18 @@ func (m *meta) CheckConsistency(data *instruction.Data, signer common.Address) e
 	switch data.OPCommand {
 	case op.Prove.Hash():
 		return fdcCheckConsistency(m.chainID, data, signer)
+	case op.KeyDataProviderRestore.Hash(), op.KeyDataProviderRestoreTest.Hash():
+		// the decline would replace the backup metadata the restore's roster is read from
+		if IsDecline(&data.DataFixed) {
+			return errRestoreDecline
+		}
 	}
 
 	return nil
 }
 
 // fdcCheckConsistency checks that signer of the FDC message is the same as the signer of the whole instruction.
-// An unverified vote (empty response) is not checked: it never reaches the node.
+// A decline is not checked: it never reaches the node.
 //
 // Data providers and cosigners sign the chain-bound Relay Mode-2 prefixed hash
 // (matches the on-chain Fdc2ProofVerification.toCosignersMessageHash +
@@ -239,7 +255,7 @@ func fdcCheckConsistency(chainID uint64, data *instruction.Data, signer common.A
 		return fmt.Errorf("decoding FDC request: %w", err)
 	}
 
-	if len(data.AdditionalFixedMessage) == 0 {
+	if IsDecline(&data.DataFixed) {
 		return nil
 	}
 
@@ -283,12 +299,12 @@ func (*meta) ThresholdBIPS(data *instruction.DataFixed) (int, error) {
 
 // checkFDCThreshold validates a non-zero FDC2 PROVE data-provider threshold against the
 // rules the TEE enforces: it must be at least
-// fdcMinimumThresholdBIPS, strictly below maxBIPS, and — when below half — paired with a
+// FDCMinimumThresholdBIPS, strictly below maxBIPS, and — when below half — paired with a
 // cosigner threshold above half of the cosigners. Mirroring the rules keeps the proxy
 // from opening, finalizing, or signing a receipt for a vote the TEE would reject.
 func checkFDCThreshold(thresholdBIPS uint16, cosignersThreshold uint64, cosignerCount int) error {
 	switch {
-	case thresholdBIPS < fdcMinimumThresholdBIPS:
+	case thresholdBIPS < FDCMinimumThresholdBIPS:
 		return ErrFDCThresholdTooLow
 	case thresholdBIPS < maxBIPS/2 && cosignersThreshold*2 <= uint64(cosignerCount):
 		return ErrFDCThresholdBelowHalf

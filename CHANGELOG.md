@@ -4,13 +4,13 @@
 
 ### Added
 
-- An FDC2 PROVE instruction that its data providers or cosigners could not verify gets a failed result without reaching the FCC node.
-  The relay sends such a vote with an empty additional fixed message, and these votes form their own voting.
-  It finalizes once the verified voting can no longer reach its threshold: when its weight reaches the total weight minus the threshold, or when more cosigners vote in it than the cosigner count minus the cosigner threshold.
-  The proxy then stores a status `0` threshold result whose log starts with `unverified:`, with no TEE signature and `data` `{"voters":[…]}` listing the voters in vote order; no end action is sent.
-  The result is informative only: it tells whoever waits for the request that it will not be confirmed, and carries no proof.
-  `GET /action/status` marks such a voting `"unverified": true`.
-  Deploy the proxy before a relay that sends unverified votes: an earlier proxy answers them with 400.
+- A data provider can decline an instruction by voting with `DECLINE` as its additional fixed message, and an instruction's declines form their own voting.
+  Once the declines leave the instruction unable to reach its threshold, the proxy stores a status `0` threshold result whose log starts with `declined:`, with no TEE signature and `data` `{"voters":[…]}` listing the voters in vote order; nothing is sent to the FCC node.
+  A decline voting finalizes on data-provider weight alone, at the total weight minus the lowest threshold the instruction may have: the policy threshold, or for FDC2 PROVE the lower of it and 40% of the total weight.
+  Cosigners may vote declines but do not count, and restores cannot be declined (HTTP 400).
+  The result is informative only: it tells whoever waits for the instruction that it will not be confirmed, and carries no proof.
+  `GET /action/status` marks such a voting `"declined": true`.
+  Deploy the proxy before a relay that sends declines: an earlier proxy answers them with 400.
 
 ### Changed
 

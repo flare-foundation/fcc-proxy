@@ -49,7 +49,7 @@ type proposal struct {
 	cosigners         map[common.Address]bool
 	cosignerThreshold uint16
 
-	unverified bool
+	declined bool
 }
 
 // newProposal assembles a new proposal.
@@ -62,17 +62,8 @@ func newProposal(data *instruction.DataFixed, threshold uint16, cosigners map[co
 		cosigners:         cosigners,
 		cosignerThreshold: uint16(cosignerThreshold),
 
-		unverified: isUnverified(data),
+		declined: meta.IsDecline(data),
 	}
-}
-
-// reached reports whether weight and cosignerWeight pass the thresholds: an unverified
-// proposal needs either one, any other both.
-func (p *proposal) reached(weight, cosignerWeight uint16) bool {
-	if p.unverified {
-		return weight > p.threshold || cosignerWeight > p.cosignerThreshold
-	}
-	return weight > p.threshold && cosignerWeight >= p.cosignerThreshold
 }
 
 type vote struct {
@@ -113,21 +104,18 @@ func isRestore(data *instruction.DataFixed) bool {
 	return data.OPType == op.Wallet.Hash() && data.OPCommand == op.KeyDataProviderRestore.Hash()
 }
 
-// isUnverified reports whether data is an FDC2 PROVE vote whose voter could not verify the request.
-func isUnverified(data *instruction.DataFixed) bool {
-	return data.OPType == op.FDC2.Hash() && data.OPCommand == op.Prove.Hash() && len(data.AdditionalFixedMessage) == 0
-}
-
-// unverifiedThresholds turns the thresholds of a verified voting into those of its unverified
-// one, which passes once the verified one can no longer reach weight > threshold out of total,
-// or cosigners >= cosignerThreshold out of n.
-func unverifiedThresholds(total, threshold uint16, n int, cosignerThreshold uint64) (uint16, uint64) {
-	var t uint16
-	if total > threshold {
-		t = total - threshold - 1
+// declineThreshold is the threshold of a decline voting on data: it passes once the instruction
+// can no longer reach the lowest threshold it may have. Vote fields are the voter's to choose,
+// so only the policy's total and threshold feed it, and cosigners never count.
+func declineThreshold(total, threshold uint16, data *instruction.DataFixed) uint16 {
+	if data.OPType == op.FDC2.Hash() && data.OPCommand == op.Prove.Hash() {
+		threshold = min(threshold, computeThreshold(total, meta.FDCMinimumThresholdBIPS))
+	}
+	if threshold >= total {
+		return 0
 	}
 
-	return t, uint64(n) - cosignerThreshold
+	return total - threshold - 1
 }
 
 // startVoteBox opens a new voting process: it admits the proposer against the round's limiter
@@ -161,8 +149,8 @@ func startVoteBox(data *instruction.Data, signer common.Address, round *Round, m
 
 // buildVoteBox resolves the box threshold and cosigner set from instruction metadata and
 // assembles the voteBox. The caller admits the proposer via the limiter first.
-func buildVoteBox(data *instruction.Data, signer common.Address, round *Round, meta meta.Meta, expirationTime time.Duration) (*voteBox, error) {
-	t, err := meta.ThresholdBIPS(&data.DataFixed)
+func buildVoteBox(data *instruction.Data, signer common.Address, round *Round, m meta.Meta, expirationTime time.Duration) (*voteBox, error) {
+	t, err := m.ThresholdBIPS(&data.DataFixed)
 	if err != nil {
 		return nil, fmt.Errorf("reading threshold: %w", err)
 	}
@@ -182,7 +170,7 @@ func buildVoteBox(data *instruction.Data, signer common.Address, round *Round, m
 		threshold = computeThreshold(round.policy.Voters.TotalWeight, t)
 	}
 
-	cosigners, cosignerThreshold, err := meta.Cosigners(&data.DataFixed)
+	cosigners, cosignerThreshold, err := m.Cosigners(&data.DataFixed)
 	if err != nil {
 		return nil, fmt.Errorf("reading cosigners: %w", err)
 	}
@@ -194,8 +182,8 @@ func buildVoteBox(data *instruction.Data, signer common.Address, round *Round, m
 		return nil, fmt.Errorf("%w: %d > %d", errInvalidCosignerThreshold, cosignerThreshold, len(cosigners))
 	}
 
-	if isUnverified(&data.DataFixed) {
-		threshold, cosignerThreshold = unverifiedThresholds(round.policy.Voters.TotalWeight, threshold, len(cosigners), cosignerThreshold)
+	if meta.IsDecline(&data.DataFixed) {
+		threshold, cosignerThreshold = declineThreshold(round.policy.Voters.TotalWeight, round.policy.Threshold, &data.DataFixed), 0
 	}
 
 	box, err := newVoteBox(&data.DataFixed, signer, threshold, cosigners, cosignerThreshold)
@@ -308,7 +296,7 @@ func (vb *voteBox) Status() voting.Status {
 		Threshold:          threshold,
 		Cosigners:          vb.cosignerWeight,
 		CosignersThreshold: cosignersThreshold,
-		Unverified:         vb.proposal != nil && vb.proposal.unverified,
+		Declined:           vb.proposal != nil && vb.proposal.declined,
 	}
 }
 
@@ -370,7 +358,7 @@ func (vb *voteBox) addVote(signer common.Address, weight uint16, signature []byt
 		VoteHash:                      vb.VoteHash,
 	}
 
-	if !vb.Finalized && vb.proposal.reached(vb.weight, vb.cosignerWeight) {
+	if !vb.Finalized && vb.weight > vb.proposal.threshold && vb.cosignerWeight >= vb.proposal.cosignerThreshold {
 		vb.Finalized = true
 		return receipt, true, nil
 	}
@@ -462,7 +450,7 @@ func (vb *voteBox) scheduleEnd(ctx context.Context, out chan *types.Action, boxe
 			return nil
 		}
 
-		if vb.proposal.unverified { // the node never saw it
+		if vb.proposal.declined { // the node never saw it
 			return nil
 		}
 

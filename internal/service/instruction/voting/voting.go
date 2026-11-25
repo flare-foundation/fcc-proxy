@@ -47,9 +47,11 @@ func (vg voterGroup) isCosigner() bool {
 	return vg&cosigner != 0
 }
 
-// Unverified is a finalized unverified voting: its voters leave the instruction unable to reach its threshold.
-type Unverified struct {
+// Declined is a finalized decline voting: its voters leave the instruction unable to reach its threshold.
+type Declined struct {
 	InstructionID common.Hash
+	OPType        common.Hash
+	OPCommand     common.Hash
 	Voters        []common.Address // in vote order
 }
 
@@ -65,8 +67,8 @@ type Storage struct {
 
 	// Channel for actions created by voting.
 	Out chan *types.Action
-	// Channel for finalized unverified votings, which never reach the node.
-	Unverified chan *Unverified
+	// Channel for finalized decline votings, which never reach the node.
+	Declined chan *Declined
 
 	// Service-lifetime ctx; per-box goroutines outlive the request that spawns them.
 	ctx context.Context //nolint:containedctx // service-lifetime ctx, see comment
@@ -90,7 +92,7 @@ func NewStorage(ctx context.Context, config *config.Voting, meta meta.Meta, m *m
 		config:         *config,
 		meta:           meta,
 		Out:            out,
-		Unverified:     make(chan *Unverified, config.FinalizedBufferSize),
+		Declined:       make(chan *Declined, config.FinalizedBufferSize),
 		ctx:            ctx,
 		thresholdDelay: restoreThresholdDelay,
 		metrics:        m,
@@ -298,7 +300,7 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 
 	var receipt voting.Receipt
 	var actionToSend *types.Action
-	var unverified *Unverified
+	var declined *Declined
 	var reached bool
 	var startedBox bool
 	var isProvider bool
@@ -377,8 +379,8 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 			boxes.FinalizedHash = hash
 
 			switch {
-			case box.proposal.unverified:
-				unverified = &Unverified{InstructionID: id, Voters: box.voters()}
+			case box.proposal.declined:
+				declined = &Declined{InstructionID: id, OPType: data.OPType, OPCommand: data.OPCommand, Voters: box.voters()}
 			case box.finalizedAt != nil:
 				// never blocks: buffered, sent once
 				box.finalizedAt <- time.Now()
@@ -432,12 +434,12 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 		}
 	}
 
-	if unverified != nil {
+	if declined != nil {
 		select {
-		case s.Unverified <- unverified:
+		case s.Declined <- declined:
 		case <-s.ctx.Done():
 			s.metrics.FinalizedActionLost("send_cancelled")
-			return nil, fmt.Errorf("forwarding unverified voting: %w", s.ctx.Err())
+			return nil, fmt.Errorf("forwarding declined voting: %w", s.ctx.Err())
 		}
 	}
 

@@ -162,20 +162,20 @@ func (s *Service) ProcessAndStore(ctx context.Context, r *types.ActionResponse) 
 	return s.store(ctx, r)
 }
 
-// UnverifiedLog is the log of a failed FDC2 PROVE result the proxy stores for an unverified voting.
-const UnverifiedLog = "unverified: the data providers or cosigners that could not verify the request leave it unable to reach its threshold; result set by the proxy, not the TEE"
+// DeclinedLog is the log of a failed result the proxy stores for a finalized decline voting.
+const DeclinedLog = "declined: the data providers that declined the instruction leave it unable to reach its threshold; result set by the proxy, not the TEE"
 
-// unverifiedData is the data of an UnverifiedLog result.
-type unverifiedData struct {
+// declinedData is the data of a DeclinedLog result.
+type declinedData struct {
 	Voters []common.Address `json:"voters"` // in vote order
 }
 
-// StoreUnverified stores a failed threshold result for FDC2 PROVE instruction id, which voters
-// could not verify; the TEE never sees the instruction. A final result already stored wins.
-func (s *Service) StoreUnverified(ctx context.Context, id common.Hash, voters []common.Address) error {
-	data, err := json.Marshal(unverifiedData{Voters: voters})
+// StoreDeclined stores a failed threshold result for instruction id, which voters declined;
+// the TEE never sees the instruction. A final result already stored wins.
+func (s *Service) StoreDeclined(ctx context.Context, id, opType, opCommand common.Hash, voters []common.Address) error {
+	data, err := json.Marshal(declinedData{Voters: voters})
 	if err != nil {
-		return fmt.Errorf("marshaling unverified data: %w", err)
+		return fmt.Errorf("marshaling declined data: %w", err)
 	}
 
 	r := &types.ActionResponse{
@@ -183,18 +183,18 @@ func (s *Service) StoreUnverified(ctx context.Context, id common.Hash, voters []
 			ID:            id,
 			SubmissionTag: types.Threshold,
 			Status:        0,
-			Log:           UnverifiedLog,
-			OPType:        op.FDC2.Hash(),
-			OPCommand:     op.Prove.Hash(),
+			Log:           DeclinedLog,
+			OPType:        opType,
+			OPCommand:     opCommand,
 			Data:          data,
 		},
 	}
 
-	logger.Infof("instruction %s unverified by %d voters, storing failed result: %v", id, len(voters), voters)
+	logger.Infof("instruction %s declined by %d voters, storing failed result: %v", id, len(voters), voters)
 
 	err = s.store(ctx, r)
 	if errors.Is(err, errOverrideFinal) {
-		logger.Warnf("instruction %s already has a final result, unverified result dropped", id)
+		logger.Warnf("instruction %s already has a final result, declined result dropped", id)
 		return nil
 	}
 

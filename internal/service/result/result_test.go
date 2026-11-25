@@ -310,7 +310,7 @@ func (failingStorage) Get(context.Context, string) (*types.ActionResponse, error
 
 func (failingStorage) Remove(context.Context, string) error { return nil }
 
-func TestStoreUnverified(t *testing.T) {
+func TestStoreDeclined(t *testing.T) {
 	mr := miniredis.RunT(t)
 	n := storage.NewNotifier(storage.NewClient(mr.Addr()))
 	voters := []common.Address{common.HexToAddress("b2"), common.HexToAddress("a1")}
@@ -321,18 +321,18 @@ func TestStoreUnverified(t *testing.T) {
 
 		id, err := random.Hash()
 		require.NoError(t, err)
-		require.NoError(t, s.StoreUnverified(t.Context(), id, voters))
+		require.NoError(t, s.StoreDeclined(t.Context(), id, op.Wallet.Hash(), op.KeyGenerate.Hash(), voters))
 
 		r, err := s.Serve(t.Context(), id, types.Threshold)
 		require.NoError(t, err)
 		require.Equal(t, id, r.Result.ID)
 		require.Equal(t, types.Threshold, r.Result.SubmissionTag)
 		require.Equal(t, uint8(0), r.Result.Status)
-		require.Equal(t, UnverifiedLog, r.Result.Log)
-		require.Equal(t, op.FDC2.Hash(), r.Result.OPType)
-		require.Equal(t, op.Prove.Hash(), r.Result.OPCommand)
+		require.Equal(t, DeclinedLog, r.Result.Log)
+		require.Equal(t, op.Wallet.Hash(), r.Result.OPType)
+		require.Equal(t, op.KeyGenerate.Hash(), r.Result.OPCommand)
 		require.Empty(t, r.Signature, "the TEE never saw the instruction")
-		var d unverifiedData
+		var d declinedData
 		require.NoError(t, json.Unmarshal(r.Result.Data, &d))
 		require.Equal(t, voters, d.Voters, "voters in vote order")
 	})
@@ -347,7 +347,7 @@ func TestStoreUnverified(t *testing.T) {
 			Result: types.ActionResult{ID: id, SubmissionTag: types.Threshold, Status: 1},
 		}))
 
-		require.NoError(t, s.StoreUnverified(t.Context(), id, voters))
+		require.NoError(t, s.StoreDeclined(t.Context(), id, op.Wallet.Hash(), op.KeyGenerate.Hash(), voters))
 
 		r, err := s.Serve(t.Context(), id, types.Threshold)
 		require.NoError(t, err)
@@ -361,7 +361,7 @@ func TestStoreUnverified(t *testing.T) {
 
 		id, err := random.Hash()
 		require.NoError(t, err)
-		require.ErrorIs(t, s.StoreUnverified(t.Context(), id, voters), errStoreFailed)
+		require.ErrorIs(t, s.StoreDeclined(t.Context(), id, op.Wallet.Hash(), op.KeyGenerate.Hash(), voters), errStoreFailed)
 		require.ErrorIs(t, s.LastStorageErr(), errStoreFailed)
 	})
 }
