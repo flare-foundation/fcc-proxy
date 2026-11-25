@@ -24,12 +24,14 @@ jobs:
         REF: ${{ github.ref }}
         REF_NAME: ${{ github.ref_name }}
       run: |
+        version=dev
         # tag main if main branch
         if [[ "$REF_NAME" == "main" ]]; then
           image_tags=("main")
         # tag with tag name if tag
         elif [[ "$REF" == refs/tags/v* ]]; then
           image_tags=("$REF_NAME")
+          version="$REF_NAME"
           # tag with latest if tag is a new major, minor or patch version
           if [[ "$REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             image_tags+=("latest")
@@ -48,6 +50,8 @@ jobs:
         echo "ALL_TAGS=${ALL_TAGS:1}" >>"$GITHUB_ENV"
 
         echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >>"$GITHUB_ENV"
+        echo "REVISION=$(git rev-parse HEAD)" >>"$GITHUB_ENV"
+        echo "VERSION=${version}" >>"$GITHUB_ENV"
 
     - name: Login to ghcr.io
       uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -62,5 +66,8 @@ jobs:
         context: .
         push: true
         tags: ${{ env.ALL_TAGS }}
-        build-args: SOURCE_DATE_EPOCH=${{ env.SOURCE_DATE_EPOCH }}
+        build-args: |
+          SOURCE_DATE_EPOCH=${{ env.SOURCE_DATE_EPOCH }}
+          REVISION=${{ env.REVISION }}
+          VERSION=${{ env.VERSION }}
         outputs: type=registry,rewrite-timestamp=true
