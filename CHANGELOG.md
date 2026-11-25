@@ -5,7 +5,8 @@
 ### Added
 
 - A data provider can decline an instruction by voting with `DECLINE` as its additional fixed message, and an instruction's declines form their own voting.
-  Once the declines leave the instruction unable to reach its threshold, the proxy stores a status `0` threshold result whose log starts with `declined:`, with no TEE signature and `data` `{"voters":[…]}` listing the voters in vote order; nothing is sent to the FCC node.
+  Once the declines leave the instruction unable to reach its threshold, the proxy stores a status `255` threshold result whose log starts with `declined:`, with no TEE signature and `data` `{"voters":[…]}` listing the voters in vote order; nothing is sent to the FCC node.
+  Status `255` is neither final nor transient: any later FCC node result for the instruction replaces it, and it never replaces a stored result.
   A decline voting finalizes on data-provider weight alone, at the total weight minus the lowest threshold the instruction may have: the policy threshold, or for FDC2 PROVE the lower of it and 40% of the total weight.
   Cosigners may vote declines but do not count, and restores cannot be declined (HTTP 400).
   The result is informative only: it tells whoever waits for the instruction that it will not be confirmed, and carries no proof.

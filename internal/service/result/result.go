@@ -162,16 +162,22 @@ func (s *Service) ProcessAndStore(ctx context.Context, r *types.ActionResponse) 
 	return s.store(ctx, r)
 }
 
-// DeclinedLog is the log of a failed result the proxy stores for a finalized decline voting.
-const DeclinedLog = "declined: the data providers that declined the instruction leave it unable to reach its threshold; result set by the proxy, not the TEE"
+const (
+	// StatusDeclined is the status of the result the proxy stores for a finalized decline voting.
+	// It is neither final nor transient: any FCC node result replaces it, and it replaces none.
+	StatusDeclined uint8 = 255
+
+	// DeclinedLog is the log of a StatusDeclined result.
+	DeclinedLog = "declined: the data providers that declined the instruction leave it unable to reach its threshold; result set by the proxy, not the TEE"
+)
 
 // declinedData is the data of a DeclinedLog result.
 type declinedData struct {
 	Voters []common.Address `json:"voters"` // in vote order
 }
 
-// StoreDeclined stores a failed threshold result for instruction id, which voters declined;
-// the TEE never sees the instruction. A final result already stored wins.
+// StoreDeclined stores a StatusDeclined threshold result for instruction id, which voters declined;
+// the TEE never sees the instruction. A result already stored wins.
 func (s *Service) StoreDeclined(ctx context.Context, id, opType, opCommand common.Hash, voters []common.Address) error {
 	data, err := json.Marshal(declinedData{Voters: voters})
 	if err != nil {
@@ -182,7 +188,7 @@ func (s *Service) StoreDeclined(ctx context.Context, id, opType, opCommand commo
 		Result: types.ActionResult{
 			ID:            id,
 			SubmissionTag: types.Threshold,
-			Status:        0,
+			Status:        StatusDeclined,
 			Log:           DeclinedLog,
 			OPType:        opType,
 			OPCommand:     opCommand,
@@ -190,11 +196,11 @@ func (s *Service) StoreDeclined(ctx context.Context, id, opType, opCommand commo
 		},
 	}
 
-	logger.Infof("instruction %s declined by %d voters, storing failed result: %v", id, len(voters), voters)
+	logger.Infof("instruction %s declined by %d voters, storing declined result: %v", id, len(voters), voters)
 
 	err = s.store(ctx, r)
-	if errors.Is(err, errOverrideFinal) {
-		logger.Warnf("instruction %s already has a final result, declined result dropped", id)
+	if errors.Is(err, errOverrideByDecline) {
+		logger.Warnf("instruction %s already has a result, declined result dropped", id)
 		return nil
 	}
 
@@ -205,7 +211,7 @@ func (s *Service) StoreDeclined(ctx context.Context, id, opType, opCommand commo
 func (s *Service) store(ctx context.Context, r *types.ActionResponse) error {
 	err := s.rs.StoreResponse(ctx, r)
 	switch {
-	case errors.Is(err, errOverrideFinal), errors.Is(err, errOverrideTransient):
+	case errors.Is(err, errOverrideFinal), errors.Is(err, errOverrideTransient), errors.Is(err, errOverrideByDecline):
 		// A deliberate override-guard rejection protecting an already-persisted
 		// result: neither data loss nor a storage failure. Leave the liveness
 		// signal untouched and do not count it as lost.

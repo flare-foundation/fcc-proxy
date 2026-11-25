@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -315,7 +316,7 @@ func TestStoreDeclined(t *testing.T) {
 	n := storage.NewNotifier(storage.NewClient(mr.Addr()))
 	voters := []common.Address{common.HexToAddress("b2"), common.HexToAddress("a1")}
 
-	t.Run("stores a failed proxy-made threshold result", func(t *testing.T) {
+	t.Run("stores a proxy-made threshold result", func(t *testing.T) {
 		rs := NewStorage(testutil.NewMemStorage[*types.ActionResponse](), n, time.Hour, 30*time.Minute)
 		s := NewService(rs, uint64(14), nil)
 
@@ -327,7 +328,7 @@ func TestStoreDeclined(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, id, r.Result.ID)
 		require.Equal(t, types.Threshold, r.Result.SubmissionTag)
-		require.Equal(t, uint8(0), r.Result.Status)
+		require.Equal(t, StatusDeclined, r.Result.Status)
 		require.Equal(t, DeclinedLog, r.Result.Log)
 		require.Equal(t, op.Wallet.Hash(), r.Result.OPType)
 		require.Equal(t, op.KeyGenerate.Hash(), r.Result.OPCommand)
@@ -337,23 +338,44 @@ func TestStoreDeclined(t *testing.T) {
 		require.Equal(t, voters, d.Voters, "voters in vote order")
 	})
 
-	t.Run("a stored final result wins", func(t *testing.T) {
-		rs := NewStorage(testutil.NewMemStorage[*types.ActionResponse](), n, time.Hour, 30*time.Minute)
-		s := NewService(rs, uint64(14), nil)
+	for _, stored := range []uint8{0, 1, 2, 3, StatusDeclined} {
+		t.Run(fmt.Sprintf("a stored status %d wins", stored), func(t *testing.T) {
+			rs := NewStorage(testutil.NewMemStorage[*types.ActionResponse](), n, time.Hour, 30*time.Minute)
+			s := NewService(rs, uint64(14), nil)
 
-		id, err := random.Hash()
-		require.NoError(t, err)
-		require.NoError(t, rs.StoreResponse(t.Context(), &types.ActionResponse{
-			Result: types.ActionResult{ID: id, SubmissionTag: types.Threshold, Status: 1},
-		}))
+			id, err := random.Hash()
+			require.NoError(t, err)
+			require.NoError(t, rs.StoreResponse(t.Context(), &types.ActionResponse{
+				Result: types.ActionResult{ID: id, SubmissionTag: types.Threshold, Status: stored, Log: "stored"},
+			}))
 
-		require.NoError(t, s.StoreDeclined(t.Context(), id, op.Wallet.Hash(), op.KeyGenerate.Hash(), voters))
+			require.NoError(t, s.StoreDeclined(t.Context(), id, op.Wallet.Hash(), op.KeyGenerate.Hash(), voters))
 
-		r, err := s.Serve(t.Context(), id, types.Threshold)
-		require.NoError(t, err)
-		require.Equal(t, uint8(1), r.Result.Status)
-		require.NoError(t, s.LastStorageErr())
-	})
+			r, err := s.Serve(t.Context(), id, types.Threshold)
+			require.NoError(t, err)
+			require.Equal(t, "stored", r.Result.Log)
+			require.NoError(t, s.LastStorageErr())
+		})
+	}
+
+	for _, later := range []uint8{0, 1, 2, 3} {
+		t.Run(fmt.Sprintf("a later status %d replaces it", later), func(t *testing.T) {
+			rs := NewStorage(testutil.NewMemStorage[*types.ActionResponse](), n, time.Hour, 30*time.Minute)
+			s := NewService(rs, uint64(14), nil)
+
+			id, err := random.Hash()
+			require.NoError(t, err)
+			require.NoError(t, s.StoreDeclined(t.Context(), id, op.Wallet.Hash(), op.KeyGenerate.Hash(), voters))
+
+			require.NoError(t, rs.StoreResponse(t.Context(), &types.ActionResponse{
+				Result: types.ActionResult{ID: id, SubmissionTag: types.Threshold, Status: later},
+			}))
+
+			r, err := s.Serve(t.Context(), id, types.Threshold)
+			require.NoError(t, err)
+			require.Equal(t, later, r.Result.Status)
+		})
+	}
 
 	t.Run("a storage failure is returned and fails readiness", func(t *testing.T) {
 		rs := NewStorage(failingStorage{}, n, time.Hour, 30*time.Minute)

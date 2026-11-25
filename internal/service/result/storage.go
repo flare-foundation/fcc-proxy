@@ -15,13 +15,14 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 )
 
-// errOverrideFinal and errOverrideTransient mark deliberate override-guard
+// errOverrideFinal, errOverrideTransient and errOverrideByDecline mark deliberate override-guard
 // rejections: the incoming result is dropped to protect an already-persisted
 // canonical result, so it is neither data loss nor a storage failure. Callers
 // match on them (errors.Is) to keep these out of the lost-result and liveness signals.
 var (
 	errOverrideFinal     = errors.New("tried to override final status")
 	errOverrideTransient = errors.New("trying to override higher transient status")
+	errOverrideByDecline = errors.New("tried to override a result with a decline")
 )
 
 // ResultStorage provides methods for storing and retrieving action responses.
@@ -62,15 +63,20 @@ func (rs *ResultStorage) StoreResponse(ctx context.Context, response *types.Acti
 	}
 
 	// Status 0/1 is final (never overridden); >=2 is transient (overridden by a strictly higher transient or by any final).
+	// StatusDeclined is neither: any other status overrides it, and it overrides none.
 	res, err := rs.s.Get(ctx, id.String())
 	if err != nil && !errors.Is(err, storage.ErrNotFound) {
 		return fmt.Errorf("reading existing response for %s: %w", id.String(), err)
 	}
 	if res != nil {
-		if res.Result.Status < 2 {
+		switch {
+		case response.Result.Status == StatusDeclined:
+			return fmt.Errorf("%w for %s", errOverrideByDecline, id.String())
+		case res.Result.Status == StatusDeclined:
+			// a node result replaces a decline
+		case res.Result.Status < 2:
 			return fmt.Errorf("%w for %s", errOverrideFinal, id.String())
-		}
-		if response.Result.Status >= 2 && res.Result.Status >= response.Result.Status {
+		case response.Result.Status >= 2 && res.Result.Status >= response.Result.Status:
 			return fmt.Errorf("%w for %s", errOverrideTransient, id.String())
 		}
 	}
