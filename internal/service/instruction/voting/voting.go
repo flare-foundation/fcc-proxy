@@ -346,7 +346,7 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 
 		if !existsB {
 			boxes.M[hash] = box
-			go box.scheduleEnd(s.ctx, s.Out, boxes, s.thresholdDelay, s.metrics)
+			go box.schedule(s.ctx, s.Out, boxes, s.thresholdDelay, s.metrics)
 			startedBox = true
 		}
 
