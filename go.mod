@@ -1,4 +1,4 @@
-module github.com/flare-foundation/tee-proxy
+module github.com/flare-foundation/fcc-proxy
 
 go 1.27.4
 
@@ -6,8 +6,8 @@ require (
 	cloud.google.com/go/storage v1.64.0
 	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/ethereum/go-ethereum v1.17.8
-	github.com/flare-foundation/go-flare-common v1.6.0
-	github.com/flare-foundation/tee-node v0.0.30
+	github.com/flare-foundation/fcc-node v0.1.0
+	github.com/flare-foundation/go-flare-common v1.6.1
 	github.com/fsouza/fake-gcs-server v1.55.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/prometheus/client_golang v1.20.5

@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/pkg/status"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/pkg/status"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
 )
 
 // errOverrideFinal and errOverrideTransient mark deliberate override-guard

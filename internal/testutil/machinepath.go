@@ -7,12 +7,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/registry"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/tee/machinepathmanager"
 	"github.com/flare-foundation/go-flare-common/pkg/convert"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	cmpaths "github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
-	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )

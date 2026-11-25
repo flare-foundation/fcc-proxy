@@ -4,7 +4,7 @@ package init
 import (
 	"context"
 
-	"github.com/flare-foundation/tee-proxy/internal/proxy"
+	"github.com/flare-foundation/fcc-proxy/internal/proxy"
 )
 
 // Init boots the proxy from the given config path (test-only).

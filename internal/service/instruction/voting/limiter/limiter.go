@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/flare-foundation/tee-proxy/pkg/status"
+	"github.com/flare-foundation/fcc-proxy/pkg/status"
 )
 
 var (

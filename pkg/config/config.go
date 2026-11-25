@@ -113,7 +113,7 @@ func (g GCS) validate() error {
 	return nil
 }
 
-// Proxy holds the full configuration for the TEE proxy service.
+// Proxy holds the full configuration for the FCC proxy service.
 type Proxy struct {
 	Chain                        Chain           `toml:"chain"`                            // Where on-chain data is read from. Defaults to the C-chain indexer.
 	DB                           database.Config `toml:"db"`                               // C-chain indexer database config; used by chain source "indexer".
@@ -197,7 +197,7 @@ type Attestation struct {
 	MaxTokenAge    time.Duration `toml:"max_token_age"`
 	RequireSecBoot bool          `toml:"require_sec_boot"`
 
-	// AllowMagicPass accepts the tee-node sentinel; dev/test only.
+	// AllowMagicPass accepts the fcc-node sentinel; dev/test only.
 	AllowMagicPass bool `toml:"allow_magic_pass"`
 }
 
@@ -290,7 +290,7 @@ type Metrics struct {
 	Attestation  *bool `toml:"attestation"`   // Attestation verify outcomes.
 	Policy       *bool `toml:"policy"`        // Active signing-policy reward-epoch gauge.
 	Liveness     *bool `toml:"liveness"`      // Readiness gauge and info-staleness gauge.
-	Node         *bool `toml:"node"`          // TEE-node response-wait latency and outcomes (info, wallet, machinepath).
+	Node         *bool `toml:"node"`          // FCC-node response-wait latency and outcomes (info, wallet, machinepath).
 	Runtime      *bool `toml:"runtime"`       // Go runtime/process collectors and build info.
 }
 

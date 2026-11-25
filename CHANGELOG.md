@@ -1,12 +1,24 @@
 # Changelog
 
-## [v0.0.27](https://github.com/flare-foundation/tee-proxy/tree/v0.0.27) - 2026-11-12
+## Unreleased
+
+### Changed
+
+- **Breaking:** the module is renamed from `github.com/flare-foundation/tee-proxy` to `github.com/flare-foundation/fcc-proxy`, and docs, logs and comments say FCC proxy and FCC node instead of TEE proxy and TEE node.
+- **Breaking:** tee-node is replaced by fcc-node v0.1.0, and go-flare-common is bumped to v1.6.1, which fcc-node requires.
+  The node's wire format changed, so the proxy works only with a matching fcc-node.
+- **Breaking:** a result's `data` is base64 instead of hex, and `GET /backup` returns `walletBackup` as a JSON object with camelCase keys instead of base64.
+  Results, queued actions and backups stored by an earlier release are not compatible, so deploy with a fresh Redis and a fresh GCS prefix.
+- **Breaking:** metric names are prefixed `fccproxy_` instead of `teeproxy_`, the example alerts are named `FccProxy*` instead of `TeeProxy*`, and the example job selector is `fcc-proxy`; alert rules and dashboards on the old names stop matching.
+- The live chain-source tests read `FCCPROXY_LIVE_RPC_URL` and `FCCPROXY_LIVE_RELAY` instead of `TEEPROXY_LIVE_RPC_URL` and `TEEPROXY_LIVE_RELAY`.
+
+## [v0.0.27](https://github.com/flare-foundation/fcc-proxy/tree/v0.0.27) - 2026-11-12
 
 ### Changed
 
 - tee-node bumped to v0.0.30 and go-flare-common to v1.6.0, which require Go 1.27.4; Go bumped to 1.27.4.
 
-## [v0.0.26](https://github.com/flare-foundation/tee-proxy/tree/v0.0.26) - 2026-11-04
+## [v0.0.26](https://github.com/flare-foundation/fcc-proxy/tree/v0.0.26) - 2026-11-04
 
 ### Added
 
@@ -37,7 +49,7 @@
 
 - The runtime image requires `ca-certificates-bundle >= 20261020-r0`.
 
-## [v0.0.25](https://github.com/flare-foundation/tee-proxy/tree/v0.0.25) - 2026-10-01
+## [v0.0.25](https://github.com/flare-foundation/fcc-proxy/tree/v0.0.25) - 2026-10-01
 
 ### Changed
 
@@ -63,7 +75,7 @@
 
 - grpc bumped to v1.83.2 and klauspost/compress to v1.18.7 for reported vulnerabilities.
 
-## [v0.0.24](https://github.com/flare-foundation/tee-proxy/tree/v0.0.24) - 2026-08-31
+## [v0.0.24](https://github.com/flare-foundation/fcc-proxy/tree/v0.0.24) - 2026-08-31
 
 ### Changed
 
@@ -77,7 +89,7 @@
 - Instructions for a round whose signing policy has a zero threshold are rejected (`instructions_rejected_total` reason `zero_policy_threshold`) instead of finalizing on any single vote.
 - Waiting for a TEE node response no longer misses a result stored while the Redis subscription was being set up.
 
-## [v0.0.23](https://github.com/flare-foundation/tee-proxy/tree/v0.0.23) - 2026-08-19
+## [v0.0.23](https://github.com/flare-foundation/fcc-proxy/tree/v0.0.23) - 2026-08-19
 
 ### Added
 

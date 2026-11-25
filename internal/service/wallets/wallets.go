@@ -10,16 +10,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/wallets"
+	"github.com/flare-foundation/fcc-node/pkg/wallets/backup"
 
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/internal/service/result"
-	"github.com/flare-foundation/tee-proxy/pkg/status"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
-	pkgwallets "github.com/flare-foundation/tee-proxy/pkg/wallets"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/internal/service/result"
+	"github.com/flare-foundation/fcc-proxy/pkg/status"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
+	pkgwallets "github.com/flare-foundation/fcc-proxy/pkg/wallets"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
@@ -49,14 +50,14 @@ var (
 // IDPair identifies a key by its (walletID, keyID) pair.
 type IDPair = wallets.KeyIDPair
 
-// Service is the proxy-side mirror of tee-node wallet state: cached key proofs and a
+// Service is the proxy-side mirror of fcc-node wallet state: cached key proofs and a
 // pipeline of backups indexed for retrieval by clients.
 type Service struct {
 	KeysForWallet map[common.Hash][]uint64       // slice of keyIDs per walletID
 	Keys          map[IDPair]*pkgwallets.KeyData // key data per IDPair
 
-	index   storage.Storage[common.Hash]                // latest backup ID hash per IDPair
-	backups storage.Storage[*wallets.TEEBackupResponse] // backups per backupIDHash
+	index   storage.Storage[common.Hash]               // latest backup ID hash per IDPair
+	backups storage.Storage[*backup.TEEBackupResponse] // backups per backupIDHash
 
 	aq        *queue.ActionQueues
 	rs        *result.ResultStorage
@@ -72,7 +73,7 @@ type Service struct {
 }
 
 // NewService wires the wallet service to its action queue, result storage, and backup stores.
-func NewService(aq *queue.ActionQueues, rs *result.ResultStorage, index storage.Storage[common.Hash], backups storage.Storage[*wallets.TEEBackupResponse], backupTTL time.Duration, m *metrics.Metrics) *Service {
+func NewService(aq *queue.ActionQueues, rs *result.ResultStorage, index storage.Storage[common.Hash], backups storage.Storage[*backup.TEEBackupResponse], backupTTL time.Duration, m *metrics.Metrics) *Service {
 	s := &Service{
 		KeysForWallet: make(map[common.Hash][]uint64),
 		Keys:          make(map[IDPair]*pkgwallets.KeyData),
@@ -153,7 +154,7 @@ func (s *Service) RunUpdateInfo(ctx context.Context, walletSyncTrigger, backupTr
 
 // triggerSync starts one sync cycle unless one is already in progress, in which case it
 // records a skip and returns. Sync runs in its own goroutine so the event loop keeps
-// draining keyActions, backups, and backupTrigger while sync waits on the tee-node (up to
+// draining keyActions, backups, and backupTrigger while sync waits on the fcc-node (up to
 // minutes per batch). syncing guards against overlapping syncs.
 func (s *Service) triggerSync(ctx context.Context) {
 	if !s.syncing.CompareAndSwap(false, true) {
@@ -320,7 +321,7 @@ func (s *Service) localKeySet() map[IDPair]bool {
 	return set
 }
 
-// fetchKeyInfo sends a KEY_INFO action and returns the list of key infos from the tee-node.
+// fetchKeyInfo sends a KEY_INFO action and returns the list of key infos from the fcc-node.
 // Routes through ResultStorage so the action ID disambiguates concurrent or stale responses.
 func (s *Service) fetchKeyInfo(ctx context.Context) ([]types.KeyInfo, error) {
 	action, err := keysInfoAction()

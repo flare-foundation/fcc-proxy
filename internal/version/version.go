@@ -2,7 +2,7 @@
 package version
 
 // Revision is the VCS revision of the build. Container builds inject it via
-// -ldflags "-X github.com/flare-foundation/tee-proxy/internal/version.Revision=<sha>"
+// -ldflags "-X github.com/flare-foundation/fcc-proxy/internal/version.Revision=<sha>"
 // because the .git directory is absent from the build context, so
 // debug.ReadBuildInfo cannot recover vcs.revision there. It defaults to "unknown"
 // for a plain `go build`, where metrics.buildInfo falls back to the vcs.revision

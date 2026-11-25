@@ -9,13 +9,13 @@ import (
 	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/tee/machinepathmanager"
 	"github.com/flare-foundation/go-flare-common/pkg/convert"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	cmpaths "github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
-	"github.com/flare-foundation/tee-node/pkg/types"
 
-	"github.com/flare-foundation/tee-proxy/pkg/machinepath"
+	"github.com/flare-foundation/fcc-proxy/pkg/machinepath"
 )
 
 const (

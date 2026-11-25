@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/flare-foundation/tee-proxy/internal/proxy"
+	"github.com/flare-foundation/fcc-proxy/internal/proxy"
 
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 )

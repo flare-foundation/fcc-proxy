@@ -8,9 +8,9 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
-	"github.com/flare-foundation/tee-proxy/pkg/policy"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/pkg/policy"
 )
 
 var testRelay = common.HexToAddress("0x2222")

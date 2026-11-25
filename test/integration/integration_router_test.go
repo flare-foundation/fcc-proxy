@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	teeServer "github.com/flare-foundation/fcc-node/pkg/server"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	intactions "github.com/flare-foundation/fcc-proxy/test/integration/actions"
+	integrationUtils "github.com/flare-foundation/fcc-proxy/test/integration/utils"
+	testutils "github.com/flare-foundation/fcc-proxy/test/utils"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	teeServer "github.com/flare-foundation/tee-node/pkg/server"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	intactions "github.com/flare-foundation/tee-proxy/test/integration/actions"
-	integrationUtils "github.com/flare-foundation/tee-proxy/test/integration/utils"
-	testutils "github.com/flare-foundation/tee-proxy/test/utils"
 	"github.com/stretchr/testify/require"
 )
 

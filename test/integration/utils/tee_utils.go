@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +30,7 @@ func SetProxyURLOnTEE(t *testing.T, port uint, proxyURL string) {
 	require.NoError(t, err)
 }
 
-// SetChainIDOnTEE configures the TEE node's chain ID. The node refuses to process
+// SetChainIDOnTEE configures the FCC node's chain ID. The node refuses to process
 // instructions until this is set, and the value must match the chain ID the actions
 // hash their messages with.
 func SetChainIDOnTEE(t *testing.T, port uint, chainID uint64) {

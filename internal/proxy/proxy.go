@@ -10,24 +10,24 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/wallets/backup"
+	"github.com/flare-foundation/fcc-proxy/internal/liveness"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/internal/server"
+	"github.com/flare-foundation/fcc-proxy/internal/service/info"
+	"github.com/flare-foundation/fcc-proxy/internal/service/instruction"
+	"github.com/flare-foundation/fcc-proxy/internal/service/machinepath"
+	"github.com/flare-foundation/fcc-proxy/internal/service/policy"
+	"github.com/flare-foundation/fcc-proxy/internal/service/result"
+	"github.com/flare-foundation/fcc-proxy/internal/service/wallets"
+	"github.com/flare-foundation/fcc-proxy/pkg/attestation"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/pkg/instruction/meta"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 	"github.com/flare-foundation/go-flare-common/pkg/convert"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	teewallets "github.com/flare-foundation/tee-node/pkg/wallets"
-	"github.com/flare-foundation/tee-proxy/internal/liveness"
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/internal/server"
-	"github.com/flare-foundation/tee-proxy/internal/service/info"
-	"github.com/flare-foundation/tee-proxy/internal/service/instruction"
-	"github.com/flare-foundation/tee-proxy/internal/service/machinepath"
-	"github.com/flare-foundation/tee-proxy/internal/service/policy"
-	"github.com/flare-foundation/tee-proxy/internal/service/result"
-	"github.com/flare-foundation/tee-proxy/internal/service/wallets"
-	"github.com/flare-foundation/tee-proxy/pkg/attestation"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
-	"github.com/flare-foundation/tee-proxy/pkg/instruction/meta"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
 )
 
 const (
@@ -73,7 +73,7 @@ func Run(ctx context.Context, cfgPath string) {
 
 	var (
 		resultStore    storage.Storage[*types.ActionResponse]
-		backupStore    storage.Storage[*teewallets.TEEBackupResponse]
+		backupStore    storage.Storage[*backup.TEEBackupResponse]
 		backupIndex    storage.Storage[common.Hash]
 		storageBackend string
 	)
@@ -92,13 +92,13 @@ func Run(ctx context.Context, cfgPath string) {
 			}
 		}()
 		resultStore = storage.NewGCSStorage[*types.ActionResponse](gcsClient, cfg.GCS.Bucket, path.Join(cfg.GCS.Prefix, "results"))
-		backupStore = storage.NewGCSStorage[*teewallets.TEEBackupResponse](gcsClient, cfg.GCS.Bucket, path.Join(cfg.GCS.Prefix, "backups"))
+		backupStore = storage.NewGCSStorage[*backup.TEEBackupResponse](gcsClient, cfg.GCS.Bucket, path.Join(cfg.GCS.Prefix, "backups"))
 		backupIndex = storage.NewGCSStorage[common.Hash](gcsClient, cfg.GCS.Bucket, path.Join(cfg.GCS.Prefix, "backupIndex"))
 		logger.Infof("persistent storage backend: GCS bucket %q prefix %q", cfg.GCS.Bucket, cfg.GCS.Prefix)
 		storageBackend = "gcs"
 	} else {
 		resultStore = storage.NewRedisStorage[*types.ActionResponse]("results", redisClient)
-		backupStore = storage.NewRedisStorage[*teewallets.TEEBackupResponse]("backups", redisClient)
+		backupStore = storage.NewRedisStorage[*backup.TEEBackupResponse]("backups", redisClient)
 		backupIndex = storage.NewRedisStorage[common.Hash]("backupIndex", redisClient)
 		logger.Info("persistent storage backend: Redis (gcs bucket not configured)")
 		storageBackend = "redis"
@@ -337,7 +337,7 @@ func logAttestationPosture(cfg *attestation.Config) {
 	logger.Infof("attestation verification enabled: audience=%v code_hash=%v platform=%v debug_status=%v max_token_age=%v sec_boot=%v magic_pass=%v",
 		a.Audience, a.CodeHash, a.Platform, a.DebugStatus, a.MaxTokenAge, a.SecBoot, a.MagicPass)
 	if cfg.AllowMagicPass {
-		logger.Warn("attestation: allow_magic_pass=true — accepts the tee-node magic_pass sentinel in place of a real JWT; do not enable in production")
+		logger.Warn("attestation: allow_magic_pass=true — accepts the fcc-node magic_pass sentinel in place of a real JWT; do not enable in production")
 	}
 }
 

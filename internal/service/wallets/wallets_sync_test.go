@@ -11,16 +11,16 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/wallets"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
 
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/internal/service/result"
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/internal/service/result"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 
 	"github.com/alicebob/miniredis/v2"
 )
@@ -68,7 +68,7 @@ func storeGetResponse(ctx context.Context, rs *result.ResultStorage, action *typ
 }
 
 // TestSyncPreservesKeyAddedDuringSync guards the removeStaleKeys reconciliation: a fake
-// tee-node gates the KEY_PROOF response so a key is added mid-sync, and that key — absent
+// fcc-node gates the KEY_PROOF response so a key is added mid-sync, and that key — absent
 // from the remote snapshot taken at sync start — must not be evicted as stale.
 func TestSyncPreservesKeyAddedDuringSync(t *testing.T) {
 	mr := miniredis.RunT(t)
@@ -79,7 +79,7 @@ func TestSyncPreservesKeyAddedDuringSync(t *testing.T) {
 
 	svc := NewService(aq, rs, nil, nil, time.Hour, nil)
 
-	// K0 exists on the tee-node and needs a proof (local cache starts empty).
+	// K0 exists on the fcc-node and needs a proof (local cache starts empty).
 	k0Wallet := common.BytesToHash([]byte("wallet-K0"))
 	k0Proof := makeSignedProof(t, k0Wallet, 0)
 	remoteInfo := []types.KeyInfo{{WalletID: k0Wallet, KeyID: 0, Nonce: 0}}
@@ -94,7 +94,7 @@ func TestSyncPreservesKeyAddedDuringSync(t *testing.T) {
 	proofReached := make(chan struct{})
 	releaseProof := make(chan struct{})
 
-	// Fake tee-node: answers KEY_INFO at once; gates KEY_PROOF on releaseProof to open
+	// Fake fcc-node: answers KEY_INFO at once; gates KEY_PROOF on releaseProof to open
 	// the snapshot→removeStaleKeys window.
 	teeDone := make(chan struct{})
 	go func() {
@@ -107,7 +107,7 @@ func TestSyncPreservesKeyAddedDuringSync(t *testing.T) {
 
 			var di types.DirectInstruction
 			if err := json.Unmarshal(action.Data.Message, &di); err != nil {
-				t.Errorf("fake tee-node: unmarshal direct instruction: %v", err)
+				t.Errorf("fake fcc-node: unmarshal direct instruction: %v", err)
 				return
 			}
 
@@ -115,11 +115,11 @@ func TestSyncPreservesKeyAddedDuringSync(t *testing.T) {
 			case op.KeyInfo.Hash():
 				data, err := json.Marshal(remoteInfo)
 				if err != nil {
-					t.Errorf("fake tee-node: marshal key info: %v", err)
+					t.Errorf("fake fcc-node: marshal key info: %v", err)
 					return
 				}
 				if err := storeGetResponse(ctx, rs, action, op.KeyInfo, data); err != nil {
-					t.Errorf("fake tee-node: store key info response: %v", err)
+					t.Errorf("fake fcc-node: store key info response: %v", err)
 					return
 				}
 			case op.KeyProof.Hash():
@@ -131,16 +131,16 @@ func TestSyncPreservesKeyAddedDuringSync(t *testing.T) {
 				}
 				data, err := json.Marshal([]*wallets.SignedKeyExistenceProof{k0Proof})
 				if err != nil {
-					t.Errorf("fake tee-node: marshal key proof: %v", err)
+					t.Errorf("fake fcc-node: marshal key proof: %v", err)
 					return
 				}
 				if err := storeGetResponse(ctx, rs, action, op.KeyProof, data); err != nil {
-					t.Errorf("fake tee-node: store key proof response: %v", err)
+					t.Errorf("fake fcc-node: store key proof response: %v", err)
 					return
 				}
 				return
 			default:
-				t.Errorf("fake tee-node: unexpected op command %v", di.OPCommand)
+				t.Errorf("fake fcc-node: unexpected op command %v", di.OPCommand)
 				return
 			}
 		}
@@ -183,7 +183,7 @@ func TestSyncPreservesKeyAddedDuringSync(t *testing.T) {
 	require.NoError(t, err, "key added during sync must survive removeStaleKeys")
 }
 
-// walletSyncCount reads teeproxy_wallet_sync_total for the given result label from m's
+// walletSyncCount reads fccproxy_wallet_sync_total for the given result label from m's
 // registry, returning 0 if no series with that label exists.
 func walletSyncCount(t *testing.T, m *metrics.Metrics, result string) float64 {
 	t.Helper()
@@ -192,7 +192,7 @@ func walletSyncCount(t *testing.T, m *metrics.Metrics, result string) float64 {
 	require.NoError(t, err)
 
 	for _, f := range fams {
-		if f.GetName() != "teeproxy_wallet_sync_total" {
+		if f.GetName() != "fccproxy_wallet_sync_total" {
 			continue
 		}
 		for _, mc := range f.GetMetric() {
@@ -426,7 +426,7 @@ func TestTriggerSyncSkippedIncrementsWalletSync(t *testing.T) {
 }
 
 // TestTriggerSyncSuccessIncrementsWalletSync guards triggerSync's success path end to end:
-// a clean sync via a fake tee-node eventually increments
+// a clean sync via a fake fcc-node eventually increments
 // wallet_sync_total{result="success"} exactly once and no error/skipped label.
 func TestTriggerSyncSuccessIncrementsWalletSync(t *testing.T) {
 	mr := miniredis.RunT(t)

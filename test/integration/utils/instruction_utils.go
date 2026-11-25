@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	teeUtils "github.com/flare-foundation/tee-node/pkg/utils"
+	teeUtils "github.com/flare-foundation/fcc-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -20,8 +20,8 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-proxy/pkg/instruction/voting"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-proxy/pkg/instruction/voting"
 	"github.com/stretchr/testify/require"
 )
 

@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
 )
 
 // TestInstrumentHTTPRecordsRoutePattern verifies that the route label is the mux's
@@ -28,11 +28,11 @@ func TestInstrumentHTTPRecordsRoutePattern(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	const expected = `
-# HELP teeproxy_http_requests_total HTTP requests by server, route, and status class.
-# TYPE teeproxy_http_requests_total counter
-teeproxy_http_requests_total{route="GET /healthy",server="internal",status_class="2xx"} 1
+# HELP fccproxy_http_requests_total HTTP requests by server, route, and status class.
+# TYPE fccproxy_http_requests_total counter
+fccproxy_http_requests_total{route="GET /healthy",server="internal",status_class="2xx"} 1
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "teeproxy_http_requests_total"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "fccproxy_http_requests_total"))
 }
 
 // TestInstrumentHTTPImplicitOK verifies a handler that writes a body without calling
@@ -52,11 +52,11 @@ func TestInstrumentHTTPImplicitOK(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	const expected = `
-# HELP teeproxy_http_requests_total HTTP requests by server, route, and status class.
-# TYPE teeproxy_http_requests_total counter
-teeproxy_http_requests_total{route="GET /info",server="internal",status_class="2xx"} 1
+# HELP fccproxy_http_requests_total HTTP requests by server, route, and status class.
+# TYPE fccproxy_http_requests_total counter
+fccproxy_http_requests_total{route="GET /info",server="internal",status_class="2xx"} 1
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "teeproxy_http_requests_total"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "fccproxy_http_requests_total"))
 }
 
 // TestInstrumentHTTPDisabledIsPassthrough verifies that a disabled HTTP group leaves
@@ -85,12 +85,12 @@ func TestInstrumentHTTPPanicBeforeWriteHeader(t *testing.T) {
 	})
 
 	const expected = `
-# HELP teeproxy_http_requests_total HTTP requests by server, route, and status class.
-# TYPE teeproxy_http_requests_total counter
-teeproxy_http_requests_total{route="GET /panic",server="internal",status_class="5xx"} 1
+# HELP fccproxy_http_requests_total HTTP requests by server, route, and status class.
+# TYPE fccproxy_http_requests_total counter
+fccproxy_http_requests_total{route="GET /panic",server="internal",status_class="5xx"} 1
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "teeproxy_http_requests_total"))
-	require.Equal(t, 1, testutil.CollectAndCount(m.Registry(), "teeproxy_http_request_duration_seconds"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "fccproxy_http_requests_total"))
+	require.Equal(t, 1, testutil.CollectAndCount(m.Registry(), "fccproxy_http_request_duration_seconds"))
 }
 
 // TestInstrumentHTTPPanicAfterPartialWrite verifies that a panic after a 200 has already
@@ -111,11 +111,11 @@ func TestInstrumentHTTPPanicAfterPartialWrite(t *testing.T) {
 	})
 
 	const expected = `
-# HELP teeproxy_http_requests_total HTTP requests by server, route, and status class.
-# TYPE teeproxy_http_requests_total counter
-teeproxy_http_requests_total{route="GET /partial",server="internal",status_class="5xx"} 1
+# HELP fccproxy_http_requests_total HTTP requests by server, route, and status class.
+# TYPE fccproxy_http_requests_total counter
+fccproxy_http_requests_total{route="GET /partial",server="internal",status_class="5xx"} 1
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "teeproxy_http_requests_total"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "fccproxy_http_requests_total"))
 }
 
 // TestInstrumentHTTPErrAbortHandler verifies http.ErrAbortHandler is re-raised unchanged
@@ -134,11 +134,11 @@ func TestInstrumentHTTPErrAbortHandler(t *testing.T) {
 	})
 
 	const expected = `
-# HELP teeproxy_http_requests_total HTTP requests by server, route, and status class.
-# TYPE teeproxy_http_requests_total counter
-teeproxy_http_requests_total{route="GET /abort",server="internal",status_class="5xx"} 1
+# HELP fccproxy_http_requests_total HTTP requests by server, route, and status class.
+# TYPE fccproxy_http_requests_total counter
+fccproxy_http_requests_total{route="GET /abort",server="internal",status_class="5xx"} 1
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "teeproxy_http_requests_total"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "fccproxy_http_requests_total"))
 }
 
 // TestInstrumentHTTPNoDoubleObservationOnSuccess guards against the deferred observation
@@ -158,10 +158,10 @@ func TestInstrumentHTTPNoDoubleObservationOnSuccess(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	const expected = `
-# HELP teeproxy_http_requests_total HTTP requests by server, route, and status class.
-# TYPE teeproxy_http_requests_total counter
-teeproxy_http_requests_total{route="GET /healthy",server="internal",status_class="2xx"} 1
+# HELP fccproxy_http_requests_total HTTP requests by server, route, and status class.
+# TYPE fccproxy_http_requests_total counter
+fccproxy_http_requests_total{route="GET /healthy",server="internal",status_class="2xx"} 1
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "teeproxy_http_requests_total"))
-	require.Equal(t, 1, testutil.CollectAndCount(m.Registry(), "teeproxy_http_request_duration_seconds"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "fccproxy_http_requests_total"))
+	require.Equal(t, 1, testutil.CollectAndCount(m.Registry(), "fccproxy_http_request_duration_seconds"))
 }

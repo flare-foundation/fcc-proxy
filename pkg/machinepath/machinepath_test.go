@@ -6,11 +6,11 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	teeutils "github.com/flare-foundation/fcc-node/pkg/utils"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/tee/machinepathmanager"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	cmpaths "github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	teeutils "github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,7 +56,7 @@ func sampleHash(t *testing.T) (hash, extensionID common.Hash) {
 }
 
 // TestSerializeAndRecover verifies that a serialized governance signature is
-// recovered to the original signer by the TEE node's recovery routine, proving
+// recovered to the original signer by the FCC node's recovery routine, proving
 // the [R||S||V-27] format and EIP-191 prefixing match what the node verifies.
 func TestSerializeAndRecover(t *testing.T) {
 	hash, _ := sampleHash(t)

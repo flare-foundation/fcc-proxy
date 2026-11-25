@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -9,14 +10,14 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	proxytest "github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	proxytest "github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 )
 
 func TestActionQueues(t *testing.T) {
@@ -56,7 +57,7 @@ func testAction(name string) *types.Action {
 			ID:            crypto.Keccak256Hash([]byte(name)),
 			Type:          types.Direct,
 			SubmissionTag: types.Threshold,
-			Message:       hexutil.Bytes{},
+			Message:       json.RawMessage("{}"),
 		},
 		AdditionalVariableMessages: []hexutil.Bytes{},
 		Timestamps:                 []uint64{},
@@ -65,11 +66,11 @@ func testAction(name string) *types.Action {
 	}
 }
 
-// redeliveryCount reads teeproxy_action_redelivery_total for the main queue and given result.
+// redeliveryCount reads fccproxy_action_redelivery_total for the main queue and given result.
 func redeliveryCount(t *testing.T, m *metrics.Metrics, result string) float64 {
 	t.Helper()
 
-	return counterValue(t, m, "teeproxy_action_redelivery_total", "main", result)
+	return counterValue(t, m, "fccproxy_action_redelivery_total", "main", result)
 }
 
 // TestRestoreRequeuesForNextPoll proves an undelivered action goes back to the dequeue end
@@ -214,7 +215,7 @@ func TestActionQueuesRecordsMetrics(t *testing.T) {
 			ID:            crypto.Keccak256Hash([]byte("id")),
 			Type:          types.Direct,
 			SubmissionTag: types.Threshold,
-			Message:       hexutil.Bytes{},
+			Message:       json.RawMessage("{}"),
 		},
 		AdditionalVariableMessages: []hexutil.Bytes{},
 		Timestamps:                 []uint64{},
@@ -227,21 +228,21 @@ func TestActionQueuesRecordsMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	const expected = `
-# HELP teeproxy_action_dequeue_total Action dequeue attempts by queue and result: success returned a body; empty found nothing queued; dequeue_error failed the pop itself and cancelled is a caller-side cancellation during it (no queue ID consumed, nothing lost); action_not_found and error consumed a queue ID whose body could not be fetched (an orphaned/lost action).
-# TYPE teeproxy_action_dequeue_total counter
-teeproxy_action_dequeue_total{queue="backup",result="action_not_found"} 0
-teeproxy_action_dequeue_total{queue="backup",result="dequeue_error"} 0
-teeproxy_action_dequeue_total{queue="backup",result="error"} 0
-teeproxy_action_dequeue_total{queue="direct",result="action_not_found"} 0
-teeproxy_action_dequeue_total{queue="direct",result="dequeue_error"} 0
-teeproxy_action_dequeue_total{queue="direct",result="error"} 0
-teeproxy_action_dequeue_total{queue="main",result="action_not_found"} 0
-teeproxy_action_dequeue_total{queue="main",result="dequeue_error"} 0
-teeproxy_action_dequeue_total{queue="main",result="empty"} 1
-teeproxy_action_dequeue_total{queue="main",result="error"} 0
-teeproxy_action_dequeue_total{queue="main",result="success"} 1
+# HELP fccproxy_action_dequeue_total Action dequeue attempts by queue and result: success returned a body; empty found nothing queued; dequeue_error failed the pop itself and cancelled is a caller-side cancellation during it (no queue ID consumed, nothing lost); action_not_found and error consumed a queue ID whose body could not be fetched (an orphaned/lost action).
+# TYPE fccproxy_action_dequeue_total counter
+fccproxy_action_dequeue_total{queue="backup",result="action_not_found"} 0
+fccproxy_action_dequeue_total{queue="backup",result="dequeue_error"} 0
+fccproxy_action_dequeue_total{queue="backup",result="error"} 0
+fccproxy_action_dequeue_total{queue="direct",result="action_not_found"} 0
+fccproxy_action_dequeue_total{queue="direct",result="dequeue_error"} 0
+fccproxy_action_dequeue_total{queue="direct",result="error"} 0
+fccproxy_action_dequeue_total{queue="main",result="action_not_found"} 0
+fccproxy_action_dequeue_total{queue="main",result="dequeue_error"} 0
+fccproxy_action_dequeue_total{queue="main",result="empty"} 1
+fccproxy_action_dequeue_total{queue="main",result="error"} 0
+fccproxy_action_dequeue_total{queue="main",result="success"} 1
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "teeproxy_action_dequeue_total"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "fccproxy_action_dequeue_total"))
 }
 
 // TestDequeueMissingAction covers the case where an ID is on the queue list
@@ -263,7 +264,7 @@ func TestDequeueMissingAction(t *testing.T) {
 			ID:            crypto.Keccak256Hash([]byte("evicted")),
 			Type:          types.Direct,
 			SubmissionTag: types.Threshold,
-			Message:       hexutil.Bytes{},
+			Message:       json.RawMessage("{}"),
 		},
 		AdditionalVariableMessages: []hexutil.Bytes{},
 		Timestamps:                 []uint64{},
@@ -284,27 +285,27 @@ func TestDequeueMissingAction(t *testing.T) {
 	// The evicted-body path must be labeled action_not_found — distinct from a healthy
 	// dequeue or a Redis error — so an operator can alert on body/ID divergence.
 	const expected = `
-# HELP teeproxy_action_dequeue_total Action dequeue attempts by queue and result: success returned a body; empty found nothing queued; dequeue_error failed the pop itself and cancelled is a caller-side cancellation during it (no queue ID consumed, nothing lost); action_not_found and error consumed a queue ID whose body could not be fetched (an orphaned/lost action).
-# TYPE teeproxy_action_dequeue_total counter
-teeproxy_action_dequeue_total{queue="backup",result="action_not_found"} 0
-teeproxy_action_dequeue_total{queue="backup",result="dequeue_error"} 0
-teeproxy_action_dequeue_total{queue="backup",result="error"} 0
-teeproxy_action_dequeue_total{queue="direct",result="action_not_found"} 0
-teeproxy_action_dequeue_total{queue="direct",result="dequeue_error"} 0
-teeproxy_action_dequeue_total{queue="direct",result="error"} 0
-teeproxy_action_dequeue_total{queue="main",result="action_not_found"} 1
-teeproxy_action_dequeue_total{queue="main",result="dequeue_error"} 0
-teeproxy_action_dequeue_total{queue="main",result="error"} 0
+# HELP fccproxy_action_dequeue_total Action dequeue attempts by queue and result: success returned a body; empty found nothing queued; dequeue_error failed the pop itself and cancelled is a caller-side cancellation during it (no queue ID consumed, nothing lost); action_not_found and error consumed a queue ID whose body could not be fetched (an orphaned/lost action).
+# TYPE fccproxy_action_dequeue_total counter
+fccproxy_action_dequeue_total{queue="backup",result="action_not_found"} 0
+fccproxy_action_dequeue_total{queue="backup",result="dequeue_error"} 0
+fccproxy_action_dequeue_total{queue="backup",result="error"} 0
+fccproxy_action_dequeue_total{queue="direct",result="action_not_found"} 0
+fccproxy_action_dequeue_total{queue="direct",result="dequeue_error"} 0
+fccproxy_action_dequeue_total{queue="direct",result="error"} 0
+fccproxy_action_dequeue_total{queue="main",result="action_not_found"} 1
+fccproxy_action_dequeue_total{queue="main",result="dequeue_error"} 0
+fccproxy_action_dequeue_total{queue="main",result="error"} 0
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "teeproxy_action_dequeue_total"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "fccproxy_action_dequeue_total"))
 }
 
-// dequeueCount reads teeproxy_action_dequeue_total for the main queue and given result
+// dequeueCount reads fccproxy_action_dequeue_total for the main queue and given result
 // label from m's registry, returning 0 if no such series exists.
 func dequeueCount(t *testing.T, m *metrics.Metrics, result string) float64 {
 	t.Helper()
 
-	return counterValue(t, m, "teeproxy_action_dequeue_total", "main", result)
+	return counterValue(t, m, "fccproxy_action_dequeue_total", "main", result)
 }
 
 // counterValue reads the named queue/result counter from m's registry, returning 0 if no
@@ -340,7 +341,7 @@ func counterValue(t *testing.T, m *metrics.Metrics, name, queue, result string) 
 
 // TestDequeuePopFailureIsNotOrphan guards the pop-failure classification: a Redis error on
 // the pop itself consumed no queue ID, so it must be labeled dequeue_error — never the
-// orphan-signalling error the TeeProxyActionOrphaned alerts page on.
+// orphan-signalling error the FccProxyActionOrphaned alerts page on.
 func TestDequeuePopFailureIsNotOrphan(t *testing.T) {
 	mr := miniredis.RunT(t)
 	c := storage.NewClient(mr.Addr())
@@ -362,7 +363,7 @@ func TestDequeuePopFailureIsNotOrphan(t *testing.T) {
 
 // TestDequeueCorruptBodyIsOrphan pins the orphan boundary from the consumed side: a popped
 // ID whose body exists but cannot be decoded must be labeled error (a real orphan the
-// TeeProxyActionOrphaned alerts page on), never dequeue_error.
+// FccProxyActionOrphaned alerts page on), never dequeue_error.
 func TestDequeueCorruptBodyIsOrphan(t *testing.T) {
 	mr := miniredis.RunT(t)
 	c := storage.NewClient(mr.Addr())
@@ -379,7 +380,7 @@ func TestDequeueCorruptBodyIsOrphan(t *testing.T) {
 			ID:            crypto.Keccak256Hash([]byte("corrupt")),
 			Type:          types.Direct,
 			SubmissionTag: types.Threshold,
-			Message:       hexutil.Bytes{},
+			Message:       json.RawMessage("{}"),
 		},
 		AdditionalVariableMessages: []hexutil.Bytes{},
 		Timestamps:                 []uint64{},
@@ -425,7 +426,7 @@ func TestDequeueCancelledPopIsNotError(t *testing.T) {
 	require.Equal(t, float64(0), dequeueCount(t, m, "error"))
 }
 
-// TestEnqueueRecordsMetrics verifies teeproxy_action_enqueue_total classifies the
+// TestEnqueueRecordsMetrics verifies fccproxy_action_enqueue_total classifies the
 // success, invalid-queue, and store-error exit paths of Enqueue.
 func TestEnqueueRecordsMetrics(t *testing.T) {
 	mr := miniredis.RunT(t)
@@ -442,7 +443,7 @@ func TestEnqueueRecordsMetrics(t *testing.T) {
 			ID:            crypto.Keccak256Hash([]byte("id")),
 			Type:          types.Direct,
 			SubmissionTag: types.Threshold,
-			Message:       hexutil.Bytes{},
+			Message:       json.RawMessage("{}"),
 		},
 		AdditionalVariableMessages: []hexutil.Bytes{},
 		Timestamps:                 []uint64{},
@@ -461,16 +462,16 @@ func TestEnqueueRecordsMetrics(t *testing.T) {
 	require.ErrorContains(t, err, "storing action")
 
 	const expected = `
-# HELP teeproxy_action_enqueue_total Action enqueue attempts by queue and result.
-# TYPE teeproxy_action_enqueue_total counter
-teeproxy_action_enqueue_total{queue="backup",result="queue_error"} 0
-teeproxy_action_enqueue_total{queue="backup",result="store_error"} 0
-teeproxy_action_enqueue_total{queue="direct",result="queue_error"} 0
-teeproxy_action_enqueue_total{queue="direct",result="store_error"} 0
-teeproxy_action_enqueue_total{queue="main",result="queue_error"} 0
-teeproxy_action_enqueue_total{queue="main",result="store_error"} 1
-teeproxy_action_enqueue_total{queue="main",result="success"} 1
-teeproxy_action_enqueue_total{queue="other",result="invalid_queue"} 1
+# HELP fccproxy_action_enqueue_total Action enqueue attempts by queue and result.
+# TYPE fccproxy_action_enqueue_total counter
+fccproxy_action_enqueue_total{queue="backup",result="queue_error"} 0
+fccproxy_action_enqueue_total{queue="backup",result="store_error"} 0
+fccproxy_action_enqueue_total{queue="direct",result="queue_error"} 0
+fccproxy_action_enqueue_total{queue="direct",result="store_error"} 0
+fccproxy_action_enqueue_total{queue="main",result="queue_error"} 0
+fccproxy_action_enqueue_total{queue="main",result="store_error"} 1
+fccproxy_action_enqueue_total{queue="main",result="success"} 1
+fccproxy_action_enqueue_total{queue="other",result="invalid_queue"} 1
 `
-	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "teeproxy_action_enqueue_total"))
+	require.NoError(t, testutil.GatherAndCompare(m.Registry(), strings.NewReader(expected), "fccproxy_action_enqueue_total"))
 }

@@ -9,16 +9,16 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/pkg/status"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/pkg/status"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/wallets/backup"
 )
 
 // initiateBackupsConcurrency caps concurrent TEE_BACKUP enqueues at epoch rollover.
@@ -53,7 +53,7 @@ func (s *Service) InitiateBackups(ctx context.Context) error {
 }
 
 // FetchBackup fetches backup for backupIDHash
-func (s *Service) FetchBackup(ctx context.Context, idHash common.Hash) (*wallets.TEEBackupResponse, error) {
+func (s *Service) FetchBackup(ctx context.Context, idHash common.Hash) (*backup.TEEBackupResponse, error) {
 	b, err := s.backups.Get(ctx, hex.EncodeToString(idHash[:]))
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
@@ -66,7 +66,7 @@ func (s *Service) FetchBackup(ctx context.Context, idHash common.Hash) (*wallets
 }
 
 // FetchLatestBackup fetches latest backup for id pair.
-func (s *Service) FetchLatestBackup(ctx context.Context, idPair IDPair) (*wallets.TEEBackupResponse, error) {
+func (s *Service) FetchLatestBackup(ctx context.Context, idPair IDPair) (*backup.TEEBackupResponse, error) {
 	idHash, err := s.index.Get(ctx, toKey(idPair))
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
@@ -75,7 +75,7 @@ func (s *Service) FetchLatestBackup(ctx context.Context, idPair IDPair) (*wallet
 		return nil, fmt.Errorf("fetching backup id hash for %v: %w", idPair, err)
 	}
 
-	backup, err := s.backups.Get(ctx, hex.EncodeToString(idHash[:]))
+	b, err := s.backups.Get(ctx, hex.EncodeToString(idHash[:]))
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			logger.Warnf("orphan index for %v points at missing body %s", idPair, idHash.Hex())
@@ -84,7 +84,7 @@ func (s *Service) FetchLatestBackup(ctx context.Context, idPair IDPair) (*wallet
 		return nil, fmt.Errorf("fetching latest backup data for %v with hash %s: %w", idPair, idHash.Hex(), err)
 	}
 
-	return backup, nil
+	return b, nil
 }
 
 func (s *Service) initiateBackup(ctx context.Context, id IDPair) error {
@@ -111,7 +111,7 @@ func teeBackupAction(idPair IDPair) (*types.Action, error) {
 }
 
 func (s *Service) createNewBackup(ctx context.Context, r *types.ActionResult) error {
-	var b *wallets.TEEBackupResponse
+	var b *backup.TEEBackupResponse
 	err := json.Unmarshal(r.Data, &b)
 	if err != nil {
 		s.metrics.WalletBackupApplyFailed()

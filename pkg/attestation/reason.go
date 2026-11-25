@@ -3,8 +3,8 @@ package attestation
 import (
 	"errors"
 
-	teeattestation "github.com/flare-foundation/tee-node/pkg/attestation"
-	"github.com/flare-foundation/tee-node/pkg/types"
+	teeattestation "github.com/flare-foundation/fcc-node/pkg/attestation"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 )
 
 // ErrorReasons lists every label Reason returns for a non-nil error.
@@ -48,7 +48,7 @@ func Reason(err error) string {
 	}
 }
 
-// IsMagicPass reports whether the response carries the tee-node magic_pass sentinel
+// IsMagicPass reports whether the response carries the fcc-node magic_pass sentinel
 // in place of a real attestation token.
 func IsMagicPass(tir *types.TeeInfoResponse) bool {
 	return tir.Attestation == teeattestation.MagicPass

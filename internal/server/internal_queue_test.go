@@ -11,14 +11,14 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	proxytest "github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	proxytest "github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 )
 
 // errWriter fails every body write, simulating a broken connection to the node.
@@ -44,7 +44,7 @@ func lostSendFailed(t *testing.T, m *metrics.Metrics) float64 {
 	mfs, err := m.Registry().Gather()
 	require.NoError(t, err)
 	for _, mf := range mfs {
-		if mf.GetName() != "teeproxy_finalized_action_lost_total" {
+		if mf.GetName() != "fccproxy_finalized_action_lost_total" {
 			continue
 		}
 		for _, mtr := range mf.GetMetric() {

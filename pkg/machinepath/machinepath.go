@@ -1,5 +1,5 @@
 // Package machinepath assembles SET_MACHINE_PATH_LIST direct actions for the
-// TEE node from governance-signed machine path lists recorded on chain by the
+// FCC node from governance-signed machine path lists recorded on chain by the
 // MachinePathManager facet.
 package machinepath
 
@@ -11,13 +11,13 @@ import (
 	"slices"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	teeutils "github.com/flare-foundation/fcc-node/pkg/utils"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/tee/machinepathmanager"
 	"github.com/flare-foundation/go-flare-common/pkg/safe"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	teeutils "github.com/flare-foundation/tee-node/pkg/utils"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
 )
 
 var errNoPaths = errors.New("no machine paths found for list")
@@ -33,7 +33,7 @@ var ErrNoAuthorization = errors.New("no governance signatures or safe approvals 
 // list's paths in on-chain order and its governance authorization from src: the
 // governance signatures and — when the node's governance is Safe-backed
 // (gov.Safe nonzero) — one locally pre-verified Safe approval. At least one form
-// must be found; otherwise ErrNoAuthorization is returned. The TEE node
+// must be found; otherwise ErrNoAuthorization is returned. The FCC node
 // re-verifies either against its own governance set and threshold; gov is
 // that same snapshot, as reported by the node. When gov.Signers is known, only
 // their signatures are forwarded: the node rejects the whole set on any other

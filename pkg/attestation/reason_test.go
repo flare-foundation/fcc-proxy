@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	teeattestation "github.com/flare-foundation/tee-node/pkg/attestation"
-	"github.com/flare-foundation/tee-node/pkg/types"
+	teeattestation "github.com/flare-foundation/fcc-node/pkg/attestation"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/stretchr/testify/require"
 )
 

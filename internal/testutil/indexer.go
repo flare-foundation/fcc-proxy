@@ -230,7 +230,7 @@ func sign(t *testing.T, digest []byte, key *ecdsa.PrivateKey) registry.Signature
 	return sig
 }
 
-// SerializedSignature is the [R||S||V-27] form the proxy forwards to the TEE node.
+// SerializedSignature is the [R||S||V-27] form the proxy forwards to the FCC node.
 func SerializedSignature(sig registry.Signature) []byte {
 	out := make([]byte, 0, 65)
 	out = append(out, sig.R[:]...)

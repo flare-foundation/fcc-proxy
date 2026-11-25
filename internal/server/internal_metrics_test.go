@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
 )
 
 // TestMetricsRouteEnabled200 guards that NewInternal mounts /metrics when the metrics
@@ -25,7 +25,7 @@ func TestMetricsRouteEnabled200(t *testing.T) {
 	rec = httptest.NewRecorder()
 	i.server.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Contains(t, rec.Body.String(), "teeproxy_http_requests_total")
+	require.Contains(t, rec.Body.String(), "fccproxy_http_requests_total")
 }
 
 // TestMetricsRouteOpenMetricsNegotiation guards promhttp's EnableOpenMetrics content

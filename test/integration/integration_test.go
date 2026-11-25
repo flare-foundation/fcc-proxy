@@ -11,21 +11,21 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 
-	teeServer "github.com/flare-foundation/tee-node/pkg/server"
+	teeServer "github.com/flare-foundation/fcc-node/pkg/server"
 
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payments"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 
-	integrationactions "github.com/flare-foundation/tee-proxy/test/integration/actions"
-	integrationUtils "github.com/flare-foundation/tee-proxy/test/integration/utils"
-	testUtils "github.com/flare-foundation/tee-proxy/test/utils"
+	integrationactions "github.com/flare-foundation/fcc-proxy/test/integration/actions"
+	integrationUtils "github.com/flare-foundation/fcc-proxy/test/integration/utils"
+	testUtils "github.com/flare-foundation/fcc-proxy/test/utils"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 )
 
 func TestProxyTeeIntegration(t *testing.T) {

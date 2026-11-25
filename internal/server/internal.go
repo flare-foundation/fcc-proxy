@@ -10,18 +10,18 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/flare-foundation/tee-proxy/internal/metrics"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/internal/service/result"
-	"github.com/flare-foundation/tee-proxy/internal/service/wallets"
-	"github.com/flare-foundation/tee-proxy/pkg/status"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
+	"github.com/flare-foundation/fcc-proxy/internal/metrics"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/internal/service/result"
+	"github.com/flare-foundation/fcc-proxy/internal/service/wallets"
+	"github.com/flare-foundation/fcc-proxy/pkg/status"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
 )
 
 const (
@@ -186,7 +186,7 @@ func (i *Internal) resultH(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// storeResult persists a result already acked to the TEE node.
+// storeResult persists a result already acked to the FCC node.
 func (i *Internal) storeResult(response *types.ActionResponse) {
 	ctx, cancel := context.WithTimeout(context.Background(), resultWriteTimeout)
 	defer cancel()

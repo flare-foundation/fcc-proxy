@@ -17,7 +17,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/convert"
 	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 
-	"github.com/flare-foundation/tee-proxy/internal/chain"
+	"github.com/flare-foundation/fcc-proxy/internal/chain"
 )
 
 var (

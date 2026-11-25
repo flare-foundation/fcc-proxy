@@ -8,16 +8,16 @@ import (
 	"math/big"
 	"math/rand"
 
-	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 
-	utils "github.com/flare-foundation/tee-node/pkg/utils"
+	utils "github.com/flare-foundation/fcc-node/pkg/utils"
 
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
 )
 
 func EncodeSigningPolicy(policy *relay.RelaySigningPolicyInitialized) ([]byte, error) {

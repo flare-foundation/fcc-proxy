@@ -14,31 +14,31 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	teewallets "github.com/flare-foundation/tee-node/pkg/wallets"
+	"github.com/flare-foundation/fcc-node/pkg/wallets/backup"
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
-	"github.com/flare-foundation/tee-node/pkg/types"
 
-	"github.com/flare-foundation/tee-proxy/internal/chain/indexer"
-	"github.com/flare-foundation/tee-proxy/internal/liveness"
-	"github.com/flare-foundation/tee-proxy/internal/queue"
-	"github.com/flare-foundation/tee-proxy/internal/server"
-	"github.com/flare-foundation/tee-proxy/internal/service/info"
-	"github.com/flare-foundation/tee-proxy/internal/service/instruction"
-	"github.com/flare-foundation/tee-proxy/internal/service/result"
-	"github.com/flare-foundation/tee-proxy/internal/service/wallets"
-	"github.com/flare-foundation/tee-proxy/internal/testutil"
-	"github.com/flare-foundation/tee-proxy/pkg/attestation"
-	"github.com/flare-foundation/tee-proxy/pkg/config"
-	"github.com/flare-foundation/tee-proxy/pkg/instruction/meta"
-	"github.com/flare-foundation/tee-proxy/pkg/instruction/voting"
-	"github.com/flare-foundation/tee-proxy/pkg/storage"
-	pkgwallets "github.com/flare-foundation/tee-proxy/pkg/wallets"
+	"github.com/flare-foundation/fcc-proxy/internal/chain/indexer"
+	"github.com/flare-foundation/fcc-proxy/internal/liveness"
+	"github.com/flare-foundation/fcc-proxy/internal/queue"
+	"github.com/flare-foundation/fcc-proxy/internal/server"
+	"github.com/flare-foundation/fcc-proxy/internal/service/info"
+	"github.com/flare-foundation/fcc-proxy/internal/service/instruction"
+	"github.com/flare-foundation/fcc-proxy/internal/service/result"
+	"github.com/flare-foundation/fcc-proxy/internal/service/wallets"
+	"github.com/flare-foundation/fcc-proxy/internal/testutil"
+	"github.com/flare-foundation/fcc-proxy/pkg/attestation"
+	"github.com/flare-foundation/fcc-proxy/pkg/config"
+	"github.com/flare-foundation/fcc-proxy/pkg/instruction/meta"
+	"github.com/flare-foundation/fcc-proxy/pkg/instruction/voting"
+	"github.com/flare-foundation/fcc-proxy/pkg/storage"
+	pkgwallets "github.com/flare-foundation/fcc-proxy/pkg/wallets"
 )
 
 // gcsTestBucket is the bucket in the in-process fake GCS server backing the
@@ -122,7 +122,7 @@ func RunProxy(t *testing.T, internalPort, externalPort uint, proxyPk *ecdsa.Priv
 	rs := result.NewStorage(storage.NewGCSStorage[*types.ActionResponse](gcsClient, gcsTestBucket, "results"), storage.NewNotifier(c), storageCfg.ResultTTL, storageCfg.SubmitResultTTL)
 
 	// Setup action and result services
-	backupStore := storage.NewGCSStorage[*teewallets.TEEBackupResponse](gcsClient, gcsTestBucket, "backups")
+	backupStore := storage.NewGCSStorage[*backup.TEEBackupResponse](gcsClient, gcsTestBucket, "backups")
 	backupIndex := storage.NewGCSStorage[common.Hash](gcsClient, gcsTestBucket, "backupIndex")
 	resultService := result.NewService(rs, TestChainID, nil)
 	walletStorage := wallets.NewService(aq, rs, backupIndex, backupStore, storageCfg.BackupTTL, nil)

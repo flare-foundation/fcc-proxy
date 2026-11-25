@@ -2,7 +2,7 @@
 # Build stage
 FROM golang:1.27.4-alpine@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS builder
 
-WORKDIR /app/tee-proxy
+WORKDIR /app/fcc-proxy
 
 # Build metadata stamped into the build_info metric. The build context excludes .git,
 # so debug.ReadBuildInfo cannot recover vcs.revision here; CI passes these via --build-arg.
@@ -13,7 +13,7 @@ ARG VERSION=dev
 COPY . .
 RUN go mod download && \
     CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X github.com/flare-foundation/tee-proxy/internal/version.Revision=${REVISION} -X github.com/flare-foundation/tee-proxy/internal/version.Version=${VERSION}" \
+    -ldflags "-X github.com/flare-foundation/fcc-proxy/internal/version.Revision=${REVISION} -X github.com/flare-foundation/fcc-proxy/internal/version.Version=${VERSION}" \
     -o main ./cmd/proxy
 
 # Final stage
@@ -24,7 +24,7 @@ RUN apk add --no-cache 'ca-certificates-bundle>=20261020-r0'
 
 WORKDIR /app
 
-COPY --from=builder /app/tee-proxy/main .
+COPY --from=builder /app/fcc-proxy/main .
 
 # Create non-root user and change ownership
 RUN addgroup -g 1001 -S appgroup && \

@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/flare-foundation/tee-proxy/pkg/status"
+	"github.com/flare-foundation/fcc-proxy/pkg/status"
 	"github.com/stretchr/testify/require"
 )
 
