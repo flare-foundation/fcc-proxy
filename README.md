@@ -2,6 +2,9 @@
 
 # FCC Proxy
 
+The Flare Confidential Compute (FCC) proxy sits between external clients and an FCC node, a server running inside a Trusted Execution Environment (TEE).
+It collects votes on instructions until they reach their threshold, queues the resulting actions for the node and stores the node's results.
+
 ## Running
 
 Copy config.example.toml to config.toml
