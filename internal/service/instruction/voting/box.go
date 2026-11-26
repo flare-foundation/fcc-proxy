@@ -48,6 +48,8 @@ type proposal struct {
 
 	cosigners         map[common.Address]bool
 	cosignerThreshold uint16
+
+	declined bool
 }
 
 // newProposal assembles a new proposal.
@@ -59,6 +61,8 @@ func newProposal(data *instruction.DataFixed, threshold uint16, cosigners map[co
 
 		cosigners:         cosigners,
 		cosignerThreshold: uint16(cosignerThreshold),
+
+		declined: meta.IsDecline(data),
 	}
 }
 
@@ -100,6 +104,20 @@ func isRestore(data *instruction.DataFixed) bool {
 	return data.OPType == op.Wallet.Hash() && data.OPCommand == op.KeyDataProviderRestore.Hash()
 }
 
+// declineThreshold is the threshold of a decline voting on data: it passes once the instruction
+// can no longer reach the lowest threshold it may have. Vote fields are the voter's to choose,
+// so only the policy's total and threshold feed it, and cosigners never count.
+func declineThreshold(total, threshold uint16, data *instruction.DataFixed) uint16 {
+	if data.OPType == op.FDC2.Hash() && data.OPCommand == op.Prove.Hash() {
+		threshold = min(threshold, computeThreshold(total, meta.FDCMinimumThresholdBIPS))
+	}
+	if threshold >= total {
+		return 0
+	}
+
+	return total - threshold - 1
+}
+
 // startVoteBox opens a new voting process: it admits the proposer against the round's limiter
 // and resolves the box's threshold and cosigner set from instruction metadata.
 func startVoteBox(data *instruction.Data, signer common.Address, round *Round, meta meta.Meta, expirationTime time.Duration) (*voteBox, error) {
@@ -131,8 +149,8 @@ func startVoteBox(data *instruction.Data, signer common.Address, round *Round, m
 
 // buildVoteBox resolves the box threshold and cosigner set from instruction metadata and
 // assembles the voteBox. The caller admits the proposer via the limiter first.
-func buildVoteBox(data *instruction.Data, signer common.Address, round *Round, meta meta.Meta, expirationTime time.Duration) (*voteBox, error) {
-	t, err := meta.ThresholdBIPS(&data.DataFixed)
+func buildVoteBox(data *instruction.Data, signer common.Address, round *Round, m meta.Meta, expirationTime time.Duration) (*voteBox, error) {
+	t, err := m.ThresholdBIPS(&data.DataFixed)
 	if err != nil {
 		return nil, fmt.Errorf("reading threshold: %w", err)
 	}
@@ -152,7 +170,7 @@ func buildVoteBox(data *instruction.Data, signer common.Address, round *Round, m
 		threshold = computeThreshold(round.policy.Voters.TotalWeight, t)
 	}
 
-	cosigners, cosignerThreshold, err := meta.Cosigners(&data.DataFixed)
+	cosigners, cosignerThreshold, err := m.Cosigners(&data.DataFixed)
 	if err != nil {
 		return nil, fmt.Errorf("reading cosigners: %w", err)
 	}
@@ -162,6 +180,10 @@ func buildVoteBox(data *instruction.Data, signer common.Address, round *Round, m
 	// the finalization gate agrees with the signed uint64 value.
 	if cosignerThreshold > uint64(len(cosigners)) {
 		return nil, fmt.Errorf("%w: %d > %d", errInvalidCosignerThreshold, cosignerThreshold, len(cosigners))
+	}
+
+	if meta.IsDecline(&data.DataFixed) {
+		threshold, cosignerThreshold = declineThreshold(round.policy.Voters.TotalWeight, round.policy.Threshold, &data.DataFixed), 0
 	}
 
 	box, err := newVoteBox(&data.DataFixed, signer, threshold, cosigners, cosignerThreshold)
@@ -274,6 +296,7 @@ func (vb *voteBox) Status() voting.Status {
 		Threshold:          threshold,
 		Cosigners:          vb.cosignerWeight,
 		CosignersThreshold: cosignersThreshold,
+		Declined:           vb.proposal != nil && vb.proposal.declined,
 	}
 }
 
@@ -422,6 +445,10 @@ func (vb *voteBox) scheduleEnd(ctx context.Context, out chan *types.Action, boxe
 			return nil
 		}
 
+		if vb.proposal.declined { // the node never saw it
+			return nil
+		}
+
 		if vb.iHash != boxes.FinalizedHash {
 			logger.Debugf("closing finalized box %v, %v that was finalized after %v", vb.iID, vb.iHash, boxes.FinalizedHash)
 			return nil
@@ -532,6 +559,18 @@ func (vb *voteBox) signersData() (signatures []hexutil.Bytes, additionalVariable
 	}
 
 	return signatures, additionalVariableMessages, timestamps
+}
+
+// voters returns the voters in vote order.
+//
+// Mutex has to be handled by the calling function.
+func (vb *voteBox) voters() []common.Address {
+	v := make([]common.Address, len(vb.votes))
+	for a, vote := range vb.votes {
+		v[vote.Sequence] = a
+	}
+
+	return v
 }
 
 // computeThreshold matches Relay.sol's div(mul(totalWeight, overrideBIPS), THRESHOLD_BIPS).

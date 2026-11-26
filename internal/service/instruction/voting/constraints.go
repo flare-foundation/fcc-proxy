@@ -8,6 +8,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 
+	"github.com/flare-foundation/fcc-proxy/pkg/instruction/meta"
 	"github.com/flare-foundation/fcc-proxy/pkg/status"
 )
 
@@ -102,7 +103,7 @@ func checkSize(data *instruction.Data, maxProviderVote float64) error {
 		return errTooManyCosigners
 	case len(data.OriginalMessage) > c.originalMessage:
 		return errOriginalMessageTooBig
-	case len(data.AdditionalFixedMessage) > c.additionalFixedMessage:
+	case len(data.AdditionalFixedMessage) > c.additionalFixedMessage && !meta.IsDecline(&data.DataFixed):
 		return errAdditionalMessageTooBig
 	case len(data.AdditionalVariableMessage) > c.additionalVariableMessage:
 		return errAdditionalVariableTooBig

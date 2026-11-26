@@ -304,13 +304,36 @@ func VerifyVotingStatus(t *testing.T, statuses *voting.Statuses, nCosigners, cos
 	require.Equal(t, threshold, statuses.Status[0].Threshold)
 }
 
+func actionResultURL(port uint, actionID common.Hash, submissionTag types.SubmissionTag) string {
+	return fmt.Sprintf("http://localhost:%d/action/result/%s?submissionTag=%s", port, strings.TrimPrefix(actionID.String(), "0x"), submissionTag)
+}
+
+// FetchActionResponse fetches the ActionResponse for actionID and submissionTag until TestTimeConfig.Timeout.
+func FetchActionResponse(t *testing.T, port uint, actionID common.Hash, submissionTag types.SubmissionTag) *types.ActionResponse {
+	t.Helper()
+
+	var res types.ActionResponse
+	makeRequests(t, actionResultURL(port, actionID, submissionTag), &res)
+
+	return &res
+}
+
+// ActionResponseCode returns the HTTP status code of a single fetch of the ActionResponse for actionID and submissionTag.
+func ActionResponseCode(port uint, actionID common.Hash, submissionTag types.SubmissionTag) (int, error) {
+	resp, err := http.Get(actionResultURL(port, actionID, submissionTag))
+	if err != nil {
+		return 0, err
+	}
+	resp.Body.Close() //nolint:errcheck,gosec // body unused
+
+	return resp.StatusCode, nil
+}
+
 // FetchAndVerifyActionResponse Fetches ActionResponse and verifies the signature
 func FetchAndVerifyActionResponse(t *testing.T, port uint, actionID common.Hash, submissionTag types.SubmissionTag, opType op.Type, opCommand op.Command, teeID common.Address, expectedStatus uint8) *types.ActionResponse {
 	t.Helper()
 
-	url := fmt.Sprintf("http://localhost:%d/action/result/%s?submissionTag=%s", port, strings.TrimPrefix(actionID.String(), "0x"), submissionTag)
-	var res types.ActionResponse
-	makeRequests(t, url, &res)
+	res := *FetchActionResponse(t, port, actionID, submissionTag)
 
 	require.Equal(t, expectedStatus, res.Result.Status)
 	require.Equal(t, submissionTag, res.Result.SubmissionTag)

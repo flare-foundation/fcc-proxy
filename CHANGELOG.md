@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- A data provider can decline an instruction by voting with `DECLINE` as its additional fixed message, and an instruction's declines form their own voting.
+  Once the declines leave the instruction unable to reach its threshold, the proxy stores a status `255` threshold result whose log starts with `declined:`, with no TEE signature and `data` `{"voters":[…]}` listing the voters in vote order; nothing is sent to the FCC node.
+  Status `255` is neither final nor transient: any later FCC node result for the instruction replaces it, and it never replaces a stored result.
+  A decline voting finalizes on data-provider weight alone, at the total weight minus the lowest threshold the instruction may have: the policy threshold, or for FDC2 PROVE the lower of it and 40% of the total weight.
+  Cosigners may vote declines but do not count, and restores cannot be declined (HTTP 400).
+  The result is informative only and carries no proof.
+  If the instruction still reaches its threshold, which takes data providers that voted both ways, its threshold action is sent and the FCC node's result replaces the declined one.
+  `GET /action/status` marks such a voting `"declined": true`.
+  Deploy the proxy before a relay that sends declines: an earlier proxy answers an FDC2 decline with 400.
+
 ### Changed
 
 - **Breaking:** the module is renamed from `github.com/flare-foundation/tee-proxy` to `github.com/flare-foundation/fcc-proxy`, and docs, logs and comments say FCC proxy and FCC node instead of TEE proxy and TEE node.
@@ -10,7 +22,7 @@
 - **Breaking:** a result's `data` is base64 instead of hex, and `GET /backup` returns `walletBackup` as a JSON object with camelCase keys instead of base64.
   Results, queued actions and backups stored by an earlier release are not compatible, so deploy with a fresh Redis and a fresh GCS prefix.
 - **Breaking:** metric names are prefixed `fccproxy_` instead of `teeproxy_`, the example alerts are named `FccProxy*` instead of `TeeProxy*`, and the example job selector is `fcc-proxy`; alert rules and dashboards on the old names stop matching.
-- **Behavioral:** when a second instruction with the same ID but different data also reaches its threshold, its threshold action is no longer sent, as fcc-node accepts one threshold per instruction ID and would answer it with status `0`.
+- **Behavioral:** when a second instruction with the same ID but different data also reaches its threshold, its threshold action is no longer sent unless the first was a decline, as fcc-node accepts one threshold per instruction ID and would answer it with status `0`.
 - **Behavioral:** `KEY_DATA_PROVIDER_RESTORE` votings stay open for the new `[voting] restore_expiration` (default `8h`) instead of `proposal_expiration`.
   The node rejects a restore's actions once it has applied two signing-policy updates past the instruction's reward epoch, and it applies each update about 1.5h before the epoch starts, so keep `restore_expiration` under one reward epoch minus 1.5h.
   The 8h default suits Flare and Songbird (3.5-day epochs); on Coston and Coston2 (6h epochs) set it to about `4h`.

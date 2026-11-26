@@ -473,3 +473,24 @@ func TestRestoreBackupMetadata(t *testing.T) {
 		require.ErrorIs(t, err, ErrMalformedPayload)
 	})
 }
+
+func TestDeclineConsistency(t *testing.T) {
+	m := New(nil, 14)
+	signer := common.HexToAddress("a1")
+
+	decline := func(opType, opCommand common.Hash, original []byte) *instruction.Data {
+		return &instruction.Data{
+			OPType:                    opType,
+			OPCommand:                 opCommand,
+			OriginalMessage:           original,
+			AdditionalFixedMessage:    hexutil.Bytes(Decline),
+			AdditionalVariableMessage: hexutil.Bytes("not a signature"),
+		}
+	}
+
+	require.NoError(t, m.CheckConsistency(decline(op.FDC2.Hash(), op.Prove.Hash(), encodeFDC2Request(t, 5000)), signer))
+	require.Error(t, m.CheckConsistency(decline(op.FDC2.Hash(), op.Prove.Hash(), []byte("malformed")), signer))
+	require.NoError(t, m.CheckConsistency(decline(op.Wallet.Hash(), op.KeyGenerate.Hash(), nil), signer))
+	require.ErrorIs(t, m.CheckConsistency(decline(op.Wallet.Hash(), op.KeyDataProviderRestore.Hash(), nil), signer), errRestoreDecline)
+	require.ErrorIs(t, m.CheckConsistency(decline(op.Wallet.Hash(), op.KeyDataProviderRestoreTest.Hash(), nil), signer), errRestoreDecline)
+}

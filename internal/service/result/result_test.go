@@ -3,7 +3,9 @@ package result
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -308,3 +310,80 @@ func (failingStorage) Get(context.Context, string) (*types.ActionResponse, error
 }
 
 func (failingStorage) Remove(context.Context, string) error { return nil }
+
+func TestStoreDeclined(t *testing.T) {
+	mr := miniredis.RunT(t)
+	n := storage.NewNotifier(storage.NewClient(mr.Addr()))
+	voters := []common.Address{common.HexToAddress("b2"), common.HexToAddress("a1")}
+
+	t.Run("stores a proxy-made threshold result", func(t *testing.T) {
+		rs := NewStorage(testutil.NewMemStorage[*types.ActionResponse](), n, time.Hour, 30*time.Minute)
+		s := NewService(rs, uint64(14), nil)
+
+		id, err := random.Hash()
+		require.NoError(t, err)
+		require.NoError(t, s.StoreDeclined(t.Context(), id, op.Wallet.Hash(), op.KeyGenerate.Hash(), voters))
+
+		r, err := s.Serve(t.Context(), id, types.Threshold)
+		require.NoError(t, err)
+		require.Equal(t, id, r.Result.ID)
+		require.Equal(t, types.Threshold, r.Result.SubmissionTag)
+		require.Equal(t, StatusDeclined, r.Result.Status)
+		require.Equal(t, DeclinedLog, r.Result.Log)
+		require.Equal(t, op.Wallet.Hash(), r.Result.OPType)
+		require.Equal(t, op.KeyGenerate.Hash(), r.Result.OPCommand)
+		require.Empty(t, r.Signature, "the TEE never saw the instruction")
+		var d declinedData
+		require.NoError(t, json.Unmarshal(r.Result.Data, &d))
+		require.Equal(t, voters, d.Voters, "voters in vote order")
+	})
+
+	for _, stored := range []uint8{0, 1, 2, 3, StatusDeclined} {
+		t.Run(fmt.Sprintf("a stored status %d wins", stored), func(t *testing.T) {
+			rs := NewStorage(testutil.NewMemStorage[*types.ActionResponse](), n, time.Hour, 30*time.Minute)
+			s := NewService(rs, uint64(14), nil)
+
+			id, err := random.Hash()
+			require.NoError(t, err)
+			require.NoError(t, rs.StoreResponse(t.Context(), &types.ActionResponse{
+				Result: types.ActionResult{ID: id, SubmissionTag: types.Threshold, Status: stored, Log: "stored"},
+			}))
+
+			require.NoError(t, s.StoreDeclined(t.Context(), id, op.Wallet.Hash(), op.KeyGenerate.Hash(), voters))
+
+			r, err := s.Serve(t.Context(), id, types.Threshold)
+			require.NoError(t, err)
+			require.Equal(t, "stored", r.Result.Log)
+			require.NoError(t, s.LastStorageErr())
+		})
+	}
+
+	for _, later := range []uint8{0, 1, 2, 3} {
+		t.Run(fmt.Sprintf("a later status %d replaces it", later), func(t *testing.T) {
+			rs := NewStorage(testutil.NewMemStorage[*types.ActionResponse](), n, time.Hour, 30*time.Minute)
+			s := NewService(rs, uint64(14), nil)
+
+			id, err := random.Hash()
+			require.NoError(t, err)
+			require.NoError(t, s.StoreDeclined(t.Context(), id, op.Wallet.Hash(), op.KeyGenerate.Hash(), voters))
+
+			require.NoError(t, rs.StoreResponse(t.Context(), &types.ActionResponse{
+				Result: types.ActionResult{ID: id, SubmissionTag: types.Threshold, Status: later},
+			}))
+
+			r, err := s.Serve(t.Context(), id, types.Threshold)
+			require.NoError(t, err)
+			require.Equal(t, later, r.Result.Status)
+		})
+	}
+
+	t.Run("a storage failure is returned and fails readiness", func(t *testing.T) {
+		rs := NewStorage(failingStorage{}, n, time.Hour, 30*time.Minute)
+		s := NewService(rs, uint64(14), nil)
+
+		id, err := random.Hash()
+		require.NoError(t, err)
+		require.ErrorIs(t, s.StoreDeclined(t.Context(), id, op.Wallet.Hash(), op.KeyGenerate.Hash(), voters), errStoreFailed)
+		require.ErrorIs(t, s.LastStorageErr(), errStoreFailed)
+	})
+}

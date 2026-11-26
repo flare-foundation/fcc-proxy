@@ -2,6 +2,7 @@ package result
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -158,15 +159,65 @@ func (s *Service) ProcessAndStore(ctx context.Context, r *types.ActionResponse) 
 
 	s.metrics.ResultProcessed(r.Result.OPCommand, r.Result.Status)
 
+	return s.store(ctx, r)
+}
+
+const (
+	// StatusDeclined is the status of the result the proxy stores for a finalized decline voting.
+	// It is neither final nor transient: any FCC node result replaces it, and it replaces none.
+	StatusDeclined uint8 = 255
+
+	// DeclinedLog is the log of a StatusDeclined result.
+	DeclinedLog = "declined: the data providers that declined the instruction leave it unable to reach its threshold; result set by the proxy, not the TEE"
+)
+
+// declinedData is the data of a DeclinedLog result.
+type declinedData struct {
+	Voters []common.Address `json:"voters"` // in vote order
+}
+
+// StoreDeclined stores a StatusDeclined threshold result for instruction id, which voters declined.
+// A result already stored wins.
+func (s *Service) StoreDeclined(ctx context.Context, id, opType, opCommand common.Hash, voters []common.Address) error {
+	data, err := json.Marshal(declinedData{Voters: voters})
+	if err != nil {
+		return fmt.Errorf("marshaling declined data: %w", err)
+	}
+
+	r := &types.ActionResponse{
+		Result: types.ActionResult{
+			ID:            id,
+			SubmissionTag: types.Threshold,
+			Status:        StatusDeclined,
+			Log:           DeclinedLog,
+			OPType:        opType,
+			OPCommand:     opCommand,
+			Data:          data,
+		},
+	}
+
+	logger.Infof("instruction %s declined by %d voters, storing declined result: %v", id, len(voters), voters)
+
+	err = s.store(ctx, r)
+	if errors.Is(err, errOverrideByDecline) {
+		logger.Warnf("instruction %s already has a result, declined result dropped", id)
+		return nil
+	}
+
+	return err
+}
+
+// store stores r and records the outcome for liveness and metrics.
+func (s *Service) store(ctx context.Context, r *types.ActionResponse) error {
 	err := s.rs.StoreResponse(ctx, r)
 	switch {
-	case errors.Is(err, errOverrideFinal), errors.Is(err, errOverrideTransient):
+	case errors.Is(err, errOverrideFinal), errors.Is(err, errOverrideTransient), errors.Is(err, errOverrideByDecline):
 		// A deliberate override-guard rejection protecting an already-persisted
 		// result: neither data loss nor a storage failure. Leave the liveness
 		// signal untouched and do not count it as lost.
 	case err != nil:
-		// Acknowledged to the node but not persisted: a genuine loss. Record it so
-		// readiness reflects the failure and count it as lost.
+		// Not persisted: a genuine loss. Record it so readiness reflects the
+		// failure and count it as lost.
 		s.recordStorageResult(err)
 		s.metrics.ResultLost()
 	default:

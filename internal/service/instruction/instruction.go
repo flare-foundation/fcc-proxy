@@ -39,14 +39,20 @@ type Service struct {
 
 	policies <-chan policy.SigningPolicy
 	aq       *queue.ActionQueues
+	results  declinedStore
 
 	metrics *metrics.Metrics
+}
+
+// declinedStore stores the failed result of a decline voting.
+type declinedStore interface {
+	StoreDeclined(ctx context.Context, id, opType, opCommand common.Hash, voters []common.Address) error
 }
 
 // NewService creates a new instruction Service with the given voting config, TEE identity, and dependencies.
 // chainID is bound into the instruction signing hash and must match the FCC node's chain ID.
 // m may be nil or disabled.
-func NewService(ctx context.Context, votingCfg *config.Voting, teeID common.Address, policiesChan <-chan policy.SigningPolicy, aq *queue.ActionQueues, meta meta.Meta, chainID uint64, m *metrics.Metrics) *Service {
+func NewService(ctx context.Context, votingCfg *config.Voting, teeID common.Address, policiesChan <-chan policy.SigningPolicy, aq *queue.ActionQueues, results declinedStore, meta meta.Meta, chainID uint64, m *metrics.Metrics) *Service {
 	vs := voting.NewStorage(ctx, votingCfg, meta, m)
 
 	// Report current-epoch participant counts, participating and per-voting weight against the
@@ -81,6 +87,7 @@ func NewService(ctx context.Context, votingCfg *config.Voting, teeID common.Addr
 
 		policies: policiesChan,
 		aq:       aq,
+		results:  results,
 
 		metrics: m,
 	}
@@ -151,7 +158,7 @@ func (s *Service) Run(ctx context.Context) {
 	}
 }
 
-// Forward listens to the out channel and enqueues received actions.
+// Forward enqueues finalized actions and stores the results of decline votings.
 func (s *Service) Forward(ctx context.Context) error {
 	for {
 		select {
@@ -163,6 +170,11 @@ func (s *Service) Forward(ctx context.Context) error {
 				s.metrics.FinalizedActionEnqueueFailed()
 				logger.Warnf("enqueuing finalized action %v (tag %v) failed, action lost: %v", action.Data.ID, action.Data.SubmissionTag, err)
 				continue
+			}
+		case d := <-s.vs.Declined:
+			err := s.results.StoreDeclined(ctx, d.InstructionID, d.OPType, d.OPCommand, d.Voters)
+			if err != nil {
+				logger.Warnf("storing declined result for %v failed, result lost: %v", d.InstructionID, err)
 			}
 		}
 	}

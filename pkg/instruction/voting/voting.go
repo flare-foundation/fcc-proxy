@@ -27,6 +27,9 @@ type Status struct {
 	Threshold          uint16           `json:"threshold"`
 	Cosigners          uint16           `json:"cosigners"`
 	CosignersThreshold uint16           `json:"cosignersThreshold"`
+	// Declined votings collect votes that decline the instruction; Threshold is the weight
+	// past which the instruction can no longer reach its own.
+	Declined bool `json:"declined,omitempty"`
 }
 
 // Statuses aggregates all voting statuses for a given instruction ID within a reward epoch.

@@ -47,6 +47,14 @@ func (vg voterGroup) isCosigner() bool {
 	return vg&cosigner != 0
 }
 
+// Declined is a finalized decline voting: its voters leave the instruction unable to reach its threshold.
+type Declined struct {
+	InstructionID common.Hash
+	OPType        common.Hash
+	OPCommand     common.Hash
+	Voters        []common.Address // in vote order
+}
+
 // Storage holds one voting Round per signing policy in a cyclic buffer; storing a new round at
 // ID%size overwrites the previous occupant.
 type Storage struct {
@@ -59,6 +67,8 @@ type Storage struct {
 
 	// Channel for actions created by voting.
 	Out chan *types.Action
+	// Channel for finalized decline votings, which never reach the node.
+	Declined chan *Declined
 
 	// Service-lifetime ctx; per-box goroutines outlive the request that spawns them.
 	ctx context.Context //nolint:containedctx // service-lifetime ctx, see comment
@@ -82,6 +92,7 @@ func NewStorage(ctx context.Context, config *config.Voting, meta meta.Meta, m *m
 		config:         *config,
 		meta:           meta,
 		Out:            out,
+		Declined:       make(chan *Declined, config.FinalizedBufferSize),
 		ctx:            ctx,
 		thresholdDelay: restoreThresholdDelay,
 		metrics:        m,
@@ -289,6 +300,7 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 
 	var receipt voting.Receipt
 	var actionToSend *types.Action
+	var declined *Declined
 	var reached bool
 	var startedBox bool
 	var isProvider bool
@@ -359,17 +371,26 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 			thresholdDuration = time.Since(box.StartTime)
 			round.limiter.Decrement(box.Proposer)
 
-			switch {
-			case boxes.FinalizedHash != (common.Hash{}) && boxes.FinalizedHash != hash:
-				// The node accepts one threshold per instruction ID, so only the first finalized hash is sent.
+			// The node accepts one threshold per instruction ID, so only the first finalized hash is sent;
+			// a finalized decline yields to an instruction finalized after it.
+			supersedes := boxes.declined && !box.proposal.declined
+			if boxes.FinalizedHash != (common.Hash{}) && boxes.FinalizedHash != hash && !supersedes {
 				logger.Warnf("instruction id %v already finalized with %v, not sending threshold action for %v", box.iID, boxes.FinalizedHash, hash)
+				return nil
+			}
+			if supersedes {
+				logger.Warnf("instruction id %v finalized with %v after its decline %v, sending threshold action", box.iID, hash, boxes.FinalizedHash)
+			}
+			boxes.FinalizedHash = hash
+			boxes.declined = box.proposal.declined
+
+			switch {
+			case box.proposal.declined:
+				declined = &Declined{InstructionID: id, OPType: data.OPType, OPCommand: data.OPCommand, Voters: box.voters()}
 			case box.finalizedAt != nil:
-				boxes.FinalizedHash = hash
 				// never blocks: buffered, sent once
 				box.finalizedAt <- time.Now()
 			default:
-				boxes.FinalizedHash = hash
-
 				a, err := box.Action(types.Threshold)
 				if err != nil {
 					logger.Errorf("failed creating threshold action for %v, %v: %v", id, hash, err)
@@ -416,6 +437,15 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 		case <-s.ctx.Done():
 			s.metrics.FinalizedActionLost("send_cancelled")
 			return nil, fmt.Errorf("forwarding finalized action: %w", s.ctx.Err())
+		}
+	}
+
+	if declined != nil {
+		select {
+		case s.Declined <- declined:
+		case <-s.ctx.Done():
+			s.metrics.FinalizedActionLost("send_cancelled")
+			return nil, fmt.Errorf("forwarding declined voting: %w", s.ctx.Err())
 		}
 	}
 
