@@ -47,11 +47,13 @@ jobs:
 
         # join with ',' and then skip first character
         ALL_TAGS=$(printf ',%s' "${image_paths[@]}")
-        echo "ALL_TAGS=${ALL_TAGS:1}" >>"$GITHUB_ENV"
 
-        echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >>"$GITHUB_ENV"
-        echo "REVISION=$(git rev-parse HEAD)" >>"$GITHUB_ENV"
-        echo "VERSION=${version}" >>"$GITHUB_ENV"
+        {
+          echo "ALL_TAGS=${ALL_TAGS:1}"
+          echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)"
+          echo "REVISION=$(git rev-parse HEAD)"
+          echo "VERSION=${version}"
+        } >>"$GITHUB_ENV"
 
     - name: Login to ghcr.io
       uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
