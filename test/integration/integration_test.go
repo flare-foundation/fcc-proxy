@@ -126,6 +126,18 @@ func TestProxyTeeIntegration(t *testing.T) {
 	require.NotNil(t, fdcResponse)
 	t.Log("FDC proof completed")
 
+	integrationactions.FDCDecline(t, cfg, policy, providerPrivKeys, adminPrivKeys)
+	t.Log("FDC decline stored")
+
+	integrationactions.FDCProveWithDeclines(t, cfg, policy, providerPrivKeys, adminPrivKeys)
+	t.Log("FDC proof kept despite declines")
+
+	integrationactions.FDCDeclineThenProve(t, cfg, policy, providerPrivKeys, adminPrivKeys)
+	t.Log("FDC proof replaced its decline")
+
+	integrationactions.PaymentDecline(t, cfg, policy, paymentInstruction, providerPrivKeys)
+	t.Log("Payment decline stored")
+
 	startingEpochID++
 	newPolicy, _, _, _ := integrationactions.UpdatePolicy(t, cfg, startingEpochID, voters, providerPrivKeys, providerPubKeysMap)
 	t.Log("Updated policy")
