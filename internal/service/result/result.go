@@ -176,8 +176,8 @@ type declinedData struct {
 	Voters []common.Address `json:"voters"` // in vote order
 }
 
-// StoreDeclined stores a StatusDeclined threshold result for instruction id, which voters declined;
-// the TEE never sees the instruction. A result already stored wins.
+// StoreDeclined stores a StatusDeclined threshold result for instruction id, which voters declined.
+// A result already stored wins.
 func (s *Service) StoreDeclined(ctx context.Context, id, opType, opCommand common.Hash, voters []common.Address) error {
 	data, err := json.Marshal(declinedData{Voters: voters})
 	if err != nil {

@@ -371,12 +371,18 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 			thresholdDuration = time.Since(box.StartTime)
 			round.limiter.Decrement(box.Proposer)
 
-			if boxes.FinalizedHash != (common.Hash{}) && boxes.FinalizedHash != hash {
-				// The node accepts one threshold per instruction ID, so only the first finalized hash is sent.
+			// The node accepts one threshold per instruction ID, so only the first finalized hash is sent;
+			// a finalized decline yields to an instruction finalized after it.
+			supersedes := boxes.declined && !box.proposal.declined
+			if boxes.FinalizedHash != (common.Hash{}) && boxes.FinalizedHash != hash && !supersedes {
 				logger.Warnf("instruction id %v already finalized with %v, not sending threshold action for %v", box.iID, boxes.FinalizedHash, hash)
 				return nil
 			}
+			if supersedes {
+				logger.Warnf("instruction id %v finalized with %v after its decline %v, sending threshold action", box.iID, hash, boxes.FinalizedHash)
+			}
 			boxes.FinalizedHash = hash
+			boxes.declined = box.proposal.declined
 
 			switch {
 			case box.proposal.declined:

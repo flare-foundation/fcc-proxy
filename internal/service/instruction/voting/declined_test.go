@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/fcc-node/pkg/fdc"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
@@ -220,7 +221,7 @@ func TestDeclineForgery(t *testing.T) {
 	})
 }
 
-func TestDeclineFirstOutcomeWins(t *testing.T) {
+func TestDeclineYieldsToInstruction(t *testing.T) {
 	t.Run("instruction first", func(t *testing.T) {
 		s := newDeclineStorage(t, &testMeta{}, time.Minute)
 
@@ -232,13 +233,42 @@ func TestDeclineFirstOutcomeWins(t *testing.T) {
 	})
 
 	t.Run("decline first", func(t *testing.T) {
-		s := newDeclineStorage(t, &testMeta{}, time.Minute)
+		s := newDeclineStorage(t, &testMeta{}, 300*time.Millisecond)
+		data := keyVote("decline-first", nil)
 
 		addVotes(t, s, keyVote("decline-first", decline), key2, key1)
 		require.Len(t, s.Declined, 1)
 
-		addVotes(t, s, keyVote("decline-first", nil), key2, key3)
+		addVotes(t, s, data, key2, key3)
+		require.Len(t, s.Out, 1)
+		require.Equal(t, types.Threshold, (<-s.Out).Data.SubmissionTag)
+
+		r, ok := s.Get(1)
+		require.True(t, ok)
+		hash, err := data.HashFixed()
+		require.NoError(t, err)
+		r.Voting.RLock()
+		boxes := r.Voting.M[data.InstructionID]
+		r.Voting.RUnlock()
+		boxes.RLock()
+		require.Equal(t, hash, boxes.FinalizedHash)
+		boxes.RUnlock()
+
+		// one threshold per ID still holds after a decline yields
+		other := keyVote("decline-first", nil)
+		other.OriginalMessage = []byte("other request")
+		addVotes(t, s, other, key3, key1)
 		require.Empty(t, s.Out)
+
+		// the instruction's end action goes out, the decline's does not
+		select {
+		case a := <-s.Out:
+			require.Equal(t, types.End, a.Data.SubmissionTag)
+			require.Equal(t, data.InstructionID, a.Data.ID)
+		case <-time.After(2 * time.Second):
+			require.FailNow(t, "no end action")
+		}
+		require.Never(t, func() bool { return len(s.Out) > 0 }, 100*time.Millisecond, 10*time.Millisecond)
 	})
 }
 

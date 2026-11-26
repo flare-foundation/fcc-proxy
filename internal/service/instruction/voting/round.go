@@ -30,6 +30,7 @@ type voteBoxes struct {
 	M map[common.Hash]*voteBox
 
 	FinalizedHash common.Hash
+	declined      bool // FinalizedHash is a decline voting's
 
 	sync.RWMutex
 }

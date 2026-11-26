@@ -445,12 +445,12 @@ func (vb *voteBox) scheduleEnd(ctx context.Context, out chan *types.Action, boxe
 			return nil
 		}
 
-		if vb.iHash != boxes.FinalizedHash {
-			logger.Debugf("closing finalized box %v, %v that was finalized after %v", vb.iID, vb.iHash, boxes.FinalizedHash)
+		if vb.proposal.declined { // the node never saw it
 			return nil
 		}
 
-		if vb.proposal.declined { // the node never saw it
+		if vb.iHash != boxes.FinalizedHash {
+			logger.Debugf("closing finalized box %v, %v that was finalized after %v", vb.iID, vb.iHash, boxes.FinalizedHash)
 			return nil
 		}
 
