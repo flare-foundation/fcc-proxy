@@ -36,9 +36,7 @@ var (
 	errZeroPolicyThreshold      = errors.New("signing policy threshold is zero")
 )
 
-// eventFutureSlack is the allowed slippage between the local clock and the
-// event timestamp: how far into the future (relative to local time) an
-// instruction's event can claim to be while still accepted.
+// eventFutureSlack is how far ahead of the local clock an instruction's event time may be.
 const eventFutureSlack = 15 * time.Second
 
 type proposal struct {
@@ -129,9 +127,7 @@ func startVoteBox(data *instruction.Data, signer common.Address, round *Round, m
 		return nil, errVotingBeforeEvent
 	}
 
-	// Admit the proposer before any metadata work: only registered providers within their
-	// pending cap may open a box, so an ineligible request is rejected after a single map
-	// lookup rather than after resolving cosigners and ABI-encoding under the epoch lock.
+	// admit the proposer first: an ineligible request then costs one map lookup, not metadata work
 	if err := round.limiter.Increment(signer); err != nil {
 		return nil, err
 	}
@@ -175,9 +171,7 @@ func buildVoteBox(data *instruction.Data, signer common.Address, round *Round, m
 		return nil, fmt.Errorf("reading cosigners: %w", err)
 	}
 
-	// A cosigner threshold larger than the cosigner set can never be met and is the signature
-	// of the uint64->uint16 wrap (e.g. 65536 -> 0). Reject before newProposal truncates it so
-	// the finalization gate agrees with the signed uint64 value.
+	// a threshold above the cosigner count is unmeetable (e.g. a uint64->uint16 wrap); reject before newProposal truncates it
 	if cosignerThreshold > uint64(len(cosigners)) {
 		return nil, fmt.Errorf("%w: %d > %d", errInvalidCosignerThreshold, cosignerThreshold, len(cosigners))
 	}
@@ -197,9 +191,7 @@ func buildVoteBox(data *instruction.Data, signer common.Address, round *Round, m
 	return box, nil
 }
 
-// newVoteBox assembles a new VoteBox.
-//
-// StartTime and EndTime should be set by the calling function.
+// newVoteBox assembles a new VoteBox; the caller sets StartTime and EndTime.
 func newVoteBox(data *instruction.DataFixed, proposer common.Address, threshold uint16, cosigners map[common.Address]bool, cosignerThreshold uint64) (*voteBox, error) {
 	proposal := newProposal(data, threshold, cosigners, cosignerThreshold)
 
@@ -311,9 +303,7 @@ func (vb *voteBox) delete() {
 	vb.deleted = true
 }
 
-// addVote records a vote and returns a Receipt. The returned bool is true only on the
-// transition into the finalized state — subsequent votes on an already-finalized box return false.
-//
+// addVote records a vote and returns a Receipt, and true only on the transition to finalized.
 // Caller must hold vb.Lock.
 func (vb *voteBox) addVote(signer common.Address, weight uint16, signature []byte, additionalVariableMessage []byte, voterGroup voterGroup) (voting.Receipt, bool, error) {
 	if voterGroup == invalidVoter {
@@ -426,8 +416,7 @@ func (vb *voteBox) scheduleEnd(ctx context.Context, out chan *types.Action, boxe
 
 	// Build the action under the locks, send after — a full `out` must not block the locks.
 	action := func() *types.Action {
-		// Acquire boxes.RLock before vb.Lock so the order matches AddVote
-		// (boxes → box) and avoids a lock-order inversion deadlock.
+		// boxes before box, as in AddVote
 		boxes.RLock()
 		defer boxes.RUnlock()
 
@@ -436,10 +425,7 @@ func (vb *voteBox) scheduleEnd(ctx context.Context, out chan *types.Action, boxe
 
 		defer vb.delete()
 
-		// An unfinalised box that reaches its end time has expired. The proposer's limiter
-		// pending count is intentionally NOT decremented here: the limiter caps unfinalised
-		// votings per provider as anti-spam, so an expired one must keep counting against that
-		// cap until the epoch rolls (see limiter.Limiter). Decrement runs only on finalize.
+		// expired: the proposer's limiter count stays (see limiter.Limiter)
 		if !vb.Finalized {
 			logger.Debugf("closing non finalized box %v, %v", vb.iID, vb.iHash)
 			return nil
@@ -489,9 +475,8 @@ func sleep(ctx context.Context, d time.Duration) bool {
 	}
 }
 
-// RejectReason maps an AddVote error to a bounded label for instructions_rejected_total;
-// unmatched errors return "other". The label set is mirrored by the metrics pre-init
-// (metrics.New) — keep the two in sync.
+// RejectReason maps an AddVote error to an instructions_rejected_total label, "other" if unmatched.
+// Keep the labels in sync with metrics.New.
 func RejectReason(err error) string {
 	switch {
 	case errors.Is(err, errInvalidVoter):
@@ -540,11 +525,8 @@ func RejectReason(err error) string {
 	}
 }
 
-// signersData returns slices of signatures, additionalVariableMessages, and timestamps.
-// signature, additionalVariableMessages, and timestamps in slot j come from the same vote.
-// Slices are sorted according to the arrival of votes.
-//
-// Mutex has to be handled by the calling function.
+// signersData returns the votes' signatures, additional variable messages and timestamps,
+// index-aligned in arrival order. Caller must hold vb.Lock.
 func (vb *voteBox) signersData() (signatures []hexutil.Bytes, additionalVariableMessages []hexutil.Bytes, timestamps []uint64) {
 	signatures = make([]hexutil.Bytes, len(vb.votes))
 	additionalVariableMessages = make([]hexutil.Bytes, len(vb.votes))
@@ -573,11 +555,8 @@ func (vb *voteBox) voters() []common.Address {
 	return v
 }
 
-// computeThreshold matches Relay.sol's div(mul(totalWeight, overrideBIPS), THRESHOLD_BIPS).
-// It is assumed that 0 <= bips <= 10000.
-//
-// Floor, not ceiling: finalization is strict (weight > threshold), so rounding up would
-// demand one weight unit more than the node and the Relay accept.
+// computeThreshold matches Relay.sol's div(mul(totalWeight, overrideBIPS), THRESHOLD_BIPS),
+// flooring like the node; bips must be in [0, 10000].
 func computeThreshold(total uint16, bips int) uint16 {
 	t64 := uint64(total)
 	b64 := uint64(bips)

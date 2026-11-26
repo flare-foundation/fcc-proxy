@@ -21,10 +21,7 @@ import (
 const (
 	txSuccessStatus = 1
 
-	// recentSignedLogsLimit bounds the LatestSignedNonce query. It must cover
-	// any out-of-order signing window: as long as no more than this many
-	// lists are signed between the highest nonce being submitted and a later
-	// query, the highest nonce > lastNonce will be among the results.
+	// recentSignedLogsLimit bounds the LatestSignedNonce query; it must exceed the lists signed out of order.
 	recentSignedLogsLimit = 20
 )
 
@@ -190,9 +187,7 @@ func (s *Source) fetchPaths(ctx context.Context, extensionID common.Hash, nonce 
 }
 
 // signatures returns the governance signatures for the list (extensionID, nonce)
-// from successful signMachinePathList transactions in the block range
-// (fromBlock, toBlock]. The contract accepts only governance signers, so a
-// successful transaction carries an accepted signature.
+// from successful signMachinePathList transactions in (fromBlock, toBlock].
 func (s *Source) signatures(ctx context.Context, extensionID common.Hash, nonce uint64, fromBlock, toBlock int64) ([]machinepathmanager.Signature, error) {
 	txs, err := database.FetchTransactionsByAddressAndSelectorBlockNumber(ctx, s.db, database.TxParams{
 		ToAddress:   s.addresses.MachinePathManager,
@@ -227,10 +222,8 @@ func (s *Source) signatures(ctx context.Context, extensionID common.Hash, nonce 
 	return sigs, nil
 }
 
-// recoverSignMachinePathListInputs unpacks the calldata of a signMachinePathList
-// transaction into its extension ID, nonce, and governance signature. The field
-// names match the ABI inputs (_extensionId, _nonce, _signature) so the generated
-// argument set can unpack directly into the struct.
+// recoverSignMachinePathListInputs unpacks a signMachinePathList transaction's calldata;
+// the struct's field names must match the ABI inputs.
 func recoverSignMachinePathListInputs(input string) (extensionID, nonce *big.Int, sig machinepathmanager.Signature, err error) {
 	inputB, err := hex.DecodeString(input)
 	if err != nil {

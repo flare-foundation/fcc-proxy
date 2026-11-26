@@ -1,9 +1,12 @@
 # Changelog
 
-## Unreleased
+## [v0.1.0](https://github.com/flare-foundation/fcc-proxy/tree/v0.1.0) - 2026-11-26
 
 ### Added
 
+- `[voting] restore_expiration` (default `8h`) sets how long `KEY_DATA_PROVIDER_RESTORE` votings stay open.
+  The node rejects a restore's actions once it has applied two signing-policy updates past the instruction's reward epoch, and it applies each update about 1.5h before the epoch starts, so keep `restore_expiration` under one reward epoch minus 1.5h.
+  The 8h default suits Flare and Songbird (3.5-day epochs); on Coston and Coston2 (6h epochs) set it to about `4h`.
 - A data provider can decline an instruction by voting with `DECLINE` as its additional fixed message, and an instruction's declines form their own voting.
   Once the declines leave the instruction unable to reach its threshold, the proxy stores a status `255` threshold result whose log starts with `declined:`, with no TEE signature and `data` `{"voters":[…]}` listing the voters in vote order; nothing is sent to the FCC node.
   Status `255` is neither final nor transient: any later FCC node result for the instruction replaces it, and it never replaces a stored result.
@@ -23,12 +26,14 @@
   Results, queued actions and backups stored by an earlier release are not compatible, so deploy with a fresh Redis and a fresh GCS prefix.
 - **Breaking:** metric names are prefixed `fccproxy_` instead of `teeproxy_`, the example alerts are named `FccProxy*` instead of `TeeProxy*`, and the example job selector is `fcc-proxy`; alert rules and dashboards on the old names stop matching.
 - **Behavioral:** when a second instruction with the same ID but different data also reaches its threshold, its threshold action is no longer sent unless the first was a decline, as fcc-node accepts one threshold per instruction ID and would answer it with status `0`.
-- **Behavioral:** `KEY_DATA_PROVIDER_RESTORE` votings stay open for the new `[voting] restore_expiration` (default `8h`) instead of `proposal_expiration`.
-  The node rejects a restore's actions once it has applied two signing-policy updates past the instruction's reward epoch, and it applies each update about 1.5h before the epoch starts, so keep `restore_expiration` under one reward epoch minus 1.5h.
-  The 8h default suits Flare and Songbird (3.5-day epochs); on Coston and Coston2 (6h epochs) set it to about `4h`.
+- **Behavioral:** `KEY_DATA_PROVIDER_RESTORE` votings stay open for `restore_expiration` (default `8h`) instead of `proposal_expiration`.
 - **Behavioral:** a finalized restore sends its threshold action 10 minutes after finalization, or at the end of the voting if that comes first, instead of at the end; the end action is still sent at the end.
 - **Behavioral:** the one-threshold-per-ID rule above also covers restores: a second restore with the same ID sends neither its threshold nor its end action, and `GET /action/status` reports a restore's `finalizedHash` instead of a zero hash.
 - The live chain-source tests read `FCCPROXY_LIVE_RPC_URL` and `FCCPROXY_LIVE_RELAY` instead of `TEEPROXY_LIVE_RPC_URL` and `TEEPROXY_LIVE_RELAY`.
+
+### Fixed
+
+- Images built by the GitHub workflow report their tag and commit in `fccproxy_build_info` instead of `dev` and `unknown`.
 
 ## [v0.0.27](https://github.com/flare-foundation/fcc-proxy/tree/v0.0.27) - 2026-11-12
 

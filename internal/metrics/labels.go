@@ -5,13 +5,8 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 )
 
-// knownOPCommands bounds the op_command label: the operation hash decodes
-// client-influenced bytes, so anything outside this set collapses to "other"
-// to keep label cardinality bounded.
-//
-// Keep this set in sync with the op.Command constants in go-flare-common's tee/op
-// package. A command added upstream but missing here is reported as "other" (never an
-// error), so drift degrades label granularity rather than breaking collection.
+// knownOPCommands bounds the client-influenced op_command label; anything else is "other".
+// Keep in sync with the op.Command constants in go-flare-common's tee/op package.
 var knownOPCommands = map[op.Command]bool{
 	op.TEEAttestation:             true,
 	op.KeyDataProviderRestore:     true,

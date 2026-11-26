@@ -135,10 +135,8 @@ func (s *Storage) MaxConsensusEpoch() uint32 {
 	return s.maxConsensusEpoch.Load()
 }
 
-// activeParticipantEpochs returns the newest resident reward epoch and its immediate
-// predecessor, the two rounds an unfinalized proposal can live in during the
-// epoch-announcement overlap, when a freshly stored policy's round is still empty while the
-// active epoch keeps voting into the previous round.
+// activeParticipantEpochs returns the newest resident reward epoch and its predecessor,
+// the rounds an unfinalized proposal can be in during the policy-adoption overlap.
 func (s *Storage) activeParticipantEpochs() []uint32 {
 	cur := s.currentEpoch.Load()
 	if cur == 0 {
@@ -147,11 +145,8 @@ func (s *Storage) activeParticipantEpochs() []uint32 {
 	return []uint32{cur, cur - 1}
 }
 
-// participantRound returns the single round every scalar active-voter gauge reports, so they
-// stay mutually coherent: the newest resident one, or its predecessor while the newest has no
-// accepted provider votes yet (the policy-adoption overlap). Nil when neither is resident.
-// Reporting only one round is what makes a participation collapse visible; a max across both
-// would be masked all epoch by the resident predecessor.
+// participantRound returns the round all scalar active-voter gauges report: the newest resident one,
+// or its predecessor while the newest has no accepted provider votes; nil when neither is resident.
 func (s *Storage) participantRound() *Round {
 	cur := s.currentEpoch.Load()
 	r, ok := s.Get(cur)
@@ -166,10 +161,7 @@ func (s *Storage) participantRound() *Round {
 	return r
 }
 
-// CurrentRoundProviderVoterCount returns the distinct data-provider-voter count for the
-// reported reward epoch, or 0 if no round is stored. Reports the current reward epoch's
-// round, falling back to its predecessor only while the current round has no accepted
-// provider votes. Read at scrape time.
+// CurrentRoundProviderVoterCount returns the distinct data-provider-voter count of participantRound, or 0.
 func (s *Storage) CurrentRoundProviderVoterCount() int {
 	r := s.participantRound()
 	if r == nil {
@@ -178,10 +170,7 @@ func (s *Storage) CurrentRoundProviderVoterCount() int {
 	return r.ProviderVoterCount()
 }
 
-// CurrentRoundInitiatorCount returns the distinct initiator count for the reported reward
-// epoch, or 0 if no round is stored. Reports the current reward epoch's round, falling back
-// to its predecessor only while the current round has no accepted provider votes. Read at
-// scrape time.
+// CurrentRoundInitiatorCount returns the distinct initiator count of participantRound, or 0.
 func (s *Storage) CurrentRoundInitiatorCount() int {
 	r := s.participantRound()
 	if r == nil {
@@ -190,10 +179,8 @@ func (s *Storage) CurrentRoundInitiatorCount() int {
 	return r.ProposerCount()
 }
 
-// CurrentVotedWeightBips returns the combined weight of the reported reward epoch's
-// data-provider voters in BIPS of the policy total, or 0 if no round is stored. Reports the
-// current reward epoch's round, falling back to its predecessor only while the current round
-// has no accepted provider votes. Read at scrape time.
+// CurrentVotedWeightBips returns the combined weight of participantRound's data-provider voters
+// in BIPS of the policy total, or 0.
 func (s *Storage) CurrentVotedWeightBips() float64 {
 	r := s.participantRound()
 	if r == nil {
@@ -202,9 +189,8 @@ func (s *Storage) CurrentVotedWeightBips() float64 {
 	return r.VotedWeightBips()
 }
 
-// CurrentMaxVotingWeightBips returns the highest provider weight any single voting
-// accumulated in the reported reward epoch, in BIPS of the policy total, or 0 if no round is
-// stored. Round selection matches CurrentVotedWeightBips. Read at scrape time.
+// CurrentMaxVotingWeightBips returns the highest provider weight a single voting in participantRound
+// accumulated, in BIPS of the policy total, or 0.
 func (s *Storage) CurrentMaxVotingWeightBips() float64 {
 	r := s.participantRound()
 	if r == nil {
@@ -213,9 +199,7 @@ func (s *Storage) CurrentMaxVotingWeightBips() float64 {
 	return r.MaxVotingWeightBips()
 }
 
-// CurrentVotingThresholdBips returns the reported reward epoch's finalization threshold in
-// BIPS of its policy total voter weight, or 0 if no round is stored. Round selection matches
-// CurrentVotedWeightBips, so the three weight gauges are comparable. Read at scrape time.
+// CurrentVotingThresholdBips returns participantRound's finalization threshold in BIPS of the policy total, or 0.
 func (s *Storage) CurrentVotingThresholdBips() float64 {
 	r := s.participantRound()
 	if r == nil {
@@ -224,10 +208,8 @@ func (s *Storage) CurrentVotingThresholdBips() float64 {
 	return r.ThresholdBips()
 }
 
-// CurrentRoundTopPending returns up to n voters with the most unfinalised proposals in the
-// latest reward epoch, or nil if no round is stored. During an epoch-announcement overlap it
-// merges the newest resident round and its predecessor, taking the max pending per provider
-// (not the sum, so a provider present in both rounds is not double-counted). Read at scrape time.
+// CurrentRoundTopPending returns up to n voters with the most unfinalized proposals across
+// activeParticipantEpochs, taking each provider's max, not sum; nil if no round is stored.
 func (s *Storage) CurrentRoundTopPending(n int) []limiter.VoterPending {
 	merged := map[common.Address]uint{}
 	for _, e := range s.activeParticipantEpochs() {
@@ -249,9 +231,7 @@ func (s *Storage) CurrentRoundTopPending(n int) []limiter.VoterPending {
 	return limiter.SortTopPending(out, n)
 }
 
-// OldestStoredEpoch returns the oldest reward epoch with a round still resident in the cyclic
-// buffer, with ok=false when none is stored. The newest resident epoch is the active one,
-// already exposed as policy_active_reward_epoch. Read at scrape time.
+// OldestStoredEpoch returns the oldest reward epoch with a resident round; ok is false when none is stored.
 func (s *Storage) OldestStoredEpoch() (uint32, bool) {
 	top := s.currentEpoch.Load()
 	var oldest uint32
@@ -272,9 +252,8 @@ func (s *Storage) OldestStoredEpoch() (uint32, bool) {
 	return oldest, ok
 }
 
-// AddVote records a vote in the appropriate box and returns a signed receipt.
-// Returns an error if the round is missing; opens a new VoteBox for an unseen instruction
-// hash when the proposer is within the limiter's per-voter cap.
+// AddVote records a vote and returns a signed receipt; an unseen instruction hash opens a new box
+// if the proposer is under its limiter cap.
 func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signature []byte) (*voting.Receipt, error) {
 	id := data.InstructionID
 
@@ -343,9 +322,7 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 			return fmt.Errorf("%w: %s", errVotingEnded, id)
 		}
 
-		// box.proposal.cosigners is read under box.Lock because scheduleEnd's
-		// deferred delete() writes it under the same lock. Without this ordering,
-		// a second AddVote arriving as the box expires races with delete().
+		// read cosigners under box.Lock: scheduleEnd's delete clears them
 		vg, weight := voterGroupCheck(signer, round.policy.Voters.VoterDataMap, box.proposal.cosigners)
 		isProvider = vg&provider != 0
 
@@ -354,7 +331,7 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 			return fmt.Errorf("adding vote from %s to %v: %w", signer, id, err)
 		}
 		receipt = r
-		votedWeight = box.weight // read under box.Lock, the only thing that makes it tear-free
+		votedWeight = box.weight // read under box.Lock
 
 		if !existsB {
 			boxes.M[hash] = box
@@ -415,8 +392,7 @@ func (s *Storage) AddVote(data *instruction.Data, signer common.Address, signatu
 	if s.collectVoters {
 		if isProvider {
 			round.markProviderVoter(signer)
-			// Outside the box lock: max is commutative and idempotent, and recording it here
-			// keeps the non-existent box.Lock -> votersMu edge out of the lock graph.
+			// outside box.Lock to keep a box.Lock -> votersMu edge out of the lock graph
 			round.recordVotingWeight(votedWeight)
 		}
 		if startedBox {

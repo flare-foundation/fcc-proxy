@@ -32,15 +32,11 @@ const (
 
 // Meta provides meta data for the instructions.
 type Meta interface {
-	// Cosigners returns cosigners' addresses and the cosigners threshold.
-	//
-	// If no cosigners are set, empty set and threshold zero is returned.
-	// A declared list naming the same address twice is rejected.
+	// Cosigners returns the cosigners and their threshold, an empty set and zero if none.
+	// A declared list naming an address twice is rejected.
 	Cosigners(*instruction.DataFixed) (map[common.Address]bool, uint64, error)
 
-	// CheckConsistency validates instruction according to its opType.
-	//
-	// For example, for the F_FDC2 Prove OPCommand, it verifies the internal signature of the FDC message.
+	// CheckConsistency validates instruction according to its opType, e.g. the FDC message signature of F_FDC2 Prove.
 	CheckConsistency(*instruction.Data, common.Address) error
 
 	// ThresholdBIPS returns custom thresholdBIPS for the instruction.
@@ -53,9 +49,7 @@ type meta struct {
 	chainID uint64
 }
 
-// New creates a Meta implementation backed by the given wallets Service.
-// chainID is bound into FDC2 message hashes during consistency checks; it
-// must match the chainID configured on the FCC node.
+// New creates a Meta backed by ws; chainID is bound into FDC2 message hashes and must match the FCC node's.
 func New(ws *wallets.Service, chainID uint64) Meta {
 	return &meta{ws: ws, chainID: chainID}
 }
@@ -147,11 +141,8 @@ func checkCosigner(cosigners []common.Address, expectedCosigners map[common.Addr
 	return nil
 }
 
-// keyDataProviderRestoreAdmins resolves the restore cosigner roster from backup metadata.
-//
-// The metadata is unauthenticated beyond its backup ID, and that ID does not cover the
-// rosters, so the node revalidates it field by field in keyRestoreDataCheck. Those checks
-// are mirrored here to reject before a restore burns its whole voting window.
+// keyDataProviderRestoreAdmins resolves the restore cosigner roster from the unauthenticated backup metadata,
+// mirroring the node's keyRestoreDataCheck.
 func keyDataProviderRestoreAdmins(data *instruction.DataFixed) (map[common.Address]bool, uint64, error) {
 	var walletBackupMetadata backup.WalletBackupMetaData
 	err := json.Unmarshal(data.AdditionalFixedMessage, &walletBackupMetadata)
@@ -199,10 +190,7 @@ func xrpCosigners(data *instruction.DataFixed, ws *wallets.Service) (map[common.
 	return walletCosigners(originalMessage.WalletId, ws)
 }
 
-// vrfCosigners retrieves cosigners for a VRF instruction from wallets configurations.
-//
-// The node checks the same roster off the named wallet key, so a client-declared set is
-// never authoritative here.
+// vrfCosigners returns a VRF instruction's cosigners from its wallet's configuration, as the node does.
 func vrfCosigners(data *instruction.DataFixed, ws *wallets.Service) (map[common.Address]bool, uint64, error) {
 	originalMessage, err := types.ParseVRFInstruction(data)
 	if err != nil {
@@ -241,14 +229,9 @@ func (m *meta) CheckConsistency(data *instruction.Data, signer common.Address) e
 	return nil
 }
 
-// fdcCheckConsistency checks that signer of the FDC message is the same as the signer of the whole instruction.
+// fdcCheckConsistency checks that the FDC message's signer is the instruction's signer.
+// Signatures are over fdc.ChainBoundRelayPrefixedHash, not the bare messageHash.
 // A decline is not checked: it never reaches the node.
-//
-// Data providers and cosigners sign the chain-bound Relay Mode-2 prefixed hash
-// (matches the on-chain Fdc2ProofVerification.toCosignersMessageHash +
-// Relay.relay() recovery path); see fdc.ChainBoundRelayPrefixedHash. Verifying
-// against the bare messageHash would fail every provider signature with
-// "signature check fail".
 func fdcCheckConsistency(chainID uint64, data *instruction.Data, signer common.Address) error {
 	fdcReq, err := fdc.DecodeRequest(data.OriginalMessage)
 	if err != nil {
@@ -297,11 +280,8 @@ func (*meta) ThresholdBIPS(data *instruction.DataFixed) (int, error) {
 	return -1, nil
 }
 
-// checkFDCThreshold validates a non-zero FDC2 PROVE data-provider threshold against the
-// rules the TEE enforces: it must be at least
-// FDCMinimumThresholdBIPS, strictly below maxBIPS, and — when below half — paired with a
-// cosigner threshold above half of the cosigners. Mirroring the rules keeps the proxy
-// from opening, finalizing, or signing a receipt for a vote the TEE would reject.
+// checkFDCThreshold applies the node's rules to a non-zero FDC2 PROVE threshold: at least FDCMinimumThresholdBIPS,
+// below maxBIPS, and when below half, a cosigner threshold above half of the cosigners.
 func checkFDCThreshold(thresholdBIPS uint16, cosignersThreshold uint64, cosignerCount int) error {
 	switch {
 	case thresholdBIPS < FDCMinimumThresholdBIPS:

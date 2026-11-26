@@ -31,15 +31,12 @@ type BlockHasher interface {
 	LatestBlockHash(ctx context.Context) (common.Hash, error)
 }
 
-// Service holds the latest TEE info and manages updating it.
-//
-// When you are accessing Latest or LastUpdate mutex should be used.
+// Service holds the latest TEE info and refreshes it; read Latest and LastUpdated under its lock.
 type Service struct {
 	Latest      *types.TeeInfoResponse
 	LastUpdated time.Time
 
-	// lastAttestationErr is sticky: once set, never cleared. A failed attestation
-	// indicates possible compromise; the orchestrator should restart the pod.
+	// lastAttestationErr is sticky: a failed attestation may mean compromise, so only a restart clears it.
 	lastAttestationErr error
 
 	chain BlockHasher
@@ -56,16 +53,13 @@ type Service struct {
 }
 
 // NewService creates an info Service that periodically refreshes TEE info from the fcc-node
-// and, when ac.Enabled, verifies the response's attestation. m may be nil or disabled.
-// LastUpdated starts at construction time so info_service_delay_seconds reports real elapsed
-// time from boot instead of a multi-decade spike before the first refresh.
-// It also seeds the refresh-stage metric labels, which exist only once a Service is wired.
+// and, when ac.Enabled, verifies its attestation; m may be nil or disabled.
 func NewService(chain BlockHasher, aq *queue.ActionQueues, rs *result.ResultStorage, tc *config.InfoTiming, ac *attestation.Config, m *metrics.Metrics) *Service {
 	m.PreinitInfoStages(stageLabels())
 
 	return &Service{
 		Latest:      new(types.TeeInfoResponse),
-		LastUpdated: time.Now(),
+		LastUpdated: time.Now(), // delay counts from boot until the first refresh
 
 		chain:           chain,
 		actionQueues:    aq,
@@ -376,12 +370,8 @@ func (s *Service) updateInfo(ctx context.Context, timeout time.Duration) (_ comm
 	return challenge, nil
 }
 
-// attestationOutcome maps a completed attestation verification to its bounded metric labels.
-// An accepted magic_pass sentinel (nil error under AllowMagicPass) yields result "ok" with
-// reason ReasonMagicPass, keeping it distinguishable from a genuine JWT pass; any error yields
-// result "error" with the classified Reason. The vErr==nil gate guarantees the sentinel was
-// actually accepted — a magic_pass under AllowMagicPass=false returns ErrMagicPassDisabled and
-// takes the error branch, so IsMagicPass is only consulted after acceptance.
+// attestationOutcome maps a completed attestation verification to its metric labels;
+// an accepted magic_pass gets reason ReasonMagicPass to tell it from a JWT pass.
 func attestationOutcome(tir *types.TeeInfoResponse, vErr error) (result, reason string) {
 	if vErr != nil {
 		return "error", attestation.Reason(vErr)

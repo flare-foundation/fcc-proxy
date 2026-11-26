@@ -12,7 +12,7 @@ type InfoTiming struct {
 	Initial                time.Duration `toml:"initial_timeout"`           // Budget for the whole bootstrap fetch, retries included; 0 means retry until it succeeds.
 	CycleInternal          time.Duration `toml:"cycle_internal"`            // Period of the internal refresh cycle.
 	CycleQueueResponseWait time.Duration `toml:"cycle_queue_response_wait"` // Per-attempt wait for a response.
-	MaxAttempts            int           `toml:"max_attempts"`              // Attempts per steady-state refresh; the node answers a slow attestation with a failing response, so one attempt is not conclusive.
+	MaxAttempts            int           `toml:"max_attempts"`              // Attempts per steady-state refresh; a slow attestation fails one attempt.
 	RetryDelay             time.Duration `toml:"retry_delay"`               // Pause between attempts.
 }
 

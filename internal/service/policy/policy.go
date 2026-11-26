@@ -69,16 +69,8 @@ func (s *Service) Initialize(ctx context.Context, src policy.Source, offset int,
 	if teeInitialInfo.TeeInfo.InitialSigningPolicyHash.Cmp(common.Hash{}) != 0 {
 		lastID := teeInitialInfo.TeeInfo.LastSigningPolicyID
 
-		// On restart the node already has policies up to lastID.
-		// Backfill epochs lastID-offset..lastID so the instruction service's
-		// cyclic buffer has rounds for recent epochs; at minimum the previous
-		// epoch matters during the ~2h window when a new policy is initialized
-		// but the old epoch is still active. Epochs before the relay's history
-		// (source-bound relay) or outside the chain source's retention are skipped.
-		//
-		// None of these policies are sent to the node — it already has them.
-		// activePolicy is set to lastID so that UpdatePolicyAction
-		// collects signatures from the correct voters for lastID+1.
+		// restart: backfill lastID-offset..lastID for the voting rounds, without sending them to the node;
+		// epochs missing from the chain source are skipped
 		back := min(uint32(offset), lastID) //nolint:gosec // offset is validated non-negative
 		startID := lastID - back
 
@@ -147,9 +139,7 @@ func (s *Service) Run(ctx context.Context, src policy.Source, policyFetchInterva
 	// sized to hold the full restart backfill: it is sent below, before a consumer exists
 	pChan := make(chan cpolicy.SigningPolicy, max(3, len(s.restartPolicies)))
 	if s.restartPolicies != nil {
-		// On restart: emit previously loaded policies so the instruction
-		// service creates cyclic buffer rounds for them.  These are NOT
-		// sent to the node (which already has them).
+		// restart: emit the backfilled policies for the voting rounds only
 		for _, p := range s.restartPolicies {
 			pChan <- *p
 		}
@@ -163,9 +153,7 @@ func (s *Service) Run(ctx context.Context, src policy.Source, policyFetchInterva
 }
 
 const (
-	// confirmationWaitTimeout bounds how long the update loop waits for the fcc-node to
-	// confirm an UPDATE_POLICY before retrying. It must stay well under the result
-	// storage TTL so the confirmation is still available when awaited.
+	// confirmationWaitTimeout bounds the wait for the node to confirm an UPDATE_POLICY; keep it under the result TTL.
 	confirmationWaitTimeout = 2 * time.Minute
 
 	// warnAfterAttempts is the number of consecutive failed attempts on a single epoch
@@ -187,11 +175,8 @@ var (
 	enqueueRetry = retry.Params{MaxAttempts: 5, Delay: time.Second}
 )
 
-// update drives signing-policy rollovers off activePolicy. Each iteration targets
-// activePolicy.RewardEpochID+1 and does not advance until that exact epoch has been
-// built, enqueued, and confirmed applied by the node. A failed epoch is retried
-// indefinitely (never skipped): both the proxy's signature collection and the node
-// require strictly consecutive policies, so skipping any epoch would wedge the pipeline.
+// update rolls the signing policy forward from activePolicy one epoch at a time, retrying each until the
+// node confirms it; an epoch is never skipped, as the node accepts only consecutive policies.
 func (s *Service) update(ctx context.Context, out chan cpolicy.SigningPolicy, src policy.Source, fetchInterval time.Duration) {
 	attempts := 0
 	for {
@@ -199,10 +184,7 @@ func (s *Service) update(ctx context.Context, out chan cpolicy.SigningPolicy, sr
 			return
 		}
 
-		// Reconcile with the node: if it has already applied a later policy than we
-		// consider active (e.g. we enqueued an UPDATE_POLICY the node applied but whose
-		// confirmation we missed), adopt the node's state rather than re-submitting an
-		// epoch it already has.
+		// adopt a later policy the node already applied, e.g. after a missed confirmation
 		if nodeID := s.nodeState.LastAppliedPolicyID(); nodeID > s.activePolicy.RewardEpochID {
 			p, found, err := policy.FetchSigningPolicy(ctx, src, nodeID)
 			if err == nil && !found {

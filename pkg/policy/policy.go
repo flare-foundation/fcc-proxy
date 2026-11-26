@@ -39,11 +39,8 @@ func UpdateFailureReason(err error) string {
 	}
 }
 
-// InitializePolicyAction prepares action for INITIALIZE_POLICY".
-// SigningPolicyInitialized event that precedes the last emitted by offset is used.
-// If such event is not found, the oldest found event is used.
-//
-// The action, signing policy, and used offset are returned.
+// InitializePolicyAction prepares the INITIALIZE_POLICY action from the SigningPolicyInitialized event offset
+// before the latest, or the oldest found; it returns the action, the policy and the offset used.
 func InitializePolicyAction(
 	ctx context.Context,
 	src Source,
@@ -177,12 +174,8 @@ func prepareUpdatePolicyAction(msg []byte) (*types.Action, error) {
 	return queue.PrepareDirectAction(op.Policy, op.UpdatePolicy, msg)
 }
 
-// policyRolloverSignatureDeadline caps how long collectSignatures waits for
-// on-chain signNewSigningPolicy endorsements during a single attempt of a policy
-// rollover. The update loop retries across attempts, so signatures that appear
-// late are still collected on a later attempt; this only bounds one attempt so the
-// loop can re-log progress and re-reconcile with the node. It is a var so tests can
-// shrink it.
+// policyRolloverSignatureDeadline caps one rollover attempt's wait for signNewSigningPolicy signatures;
+// later attempts collect late ones. A var for tests.
 var policyRolloverSignatureDeadline = 30 * time.Minute
 
 func prepareUpdatePolicyMessage(ctx context.Context, src Source, voterRegistryAddress common.Address, nextPolicy *policy.SigningPolicy, activePolicy *policy.SigningPolicy, start uint64, chainID *big.Int) ([]byte, error) {
